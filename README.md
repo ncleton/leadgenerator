@@ -104,7 +104,11 @@ Set-Location leadgenerator
 ```
 
 Ouvrir ensuite une nouvelle tâche Codex et demander : « Trouve-moi des prospects
-et affiche le parcours Lead Generator. »
+dans l'industrie et affiche le parcours Lead Generator. » Si aucun objectif n'est
+encore configuré, l'agent demande d'abord ce que vous vendez, la cible, la zone,
+les interlocuteurs et les signaux recherchés, avec un exemple concret. Aucune
+recherche n'est lancée avant cette réponse. En mode interface (activé par défaut),
+la recherche s'achève par un vrai rendu de l'explorateur MCP dans la conversation.
 
 ### Mémoire privée PostgreSQL
 

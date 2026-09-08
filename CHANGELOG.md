@@ -5,6 +5,12 @@ All notable changes to Lead Generator are documented here. The project follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Block lead sourcing until a persistent commercial objective is selected, and
+  return a concrete setup example when none exists.
+- Require the actual MCP Apps explorer render in `chat_ui` mode and prohibit
+  claims that the interface was displayed when the render tool did not succeed.
 ## [0.4.0] - 2026-09-08
 
 ### Added

@@ -1,6 +1,6 @@
 {
   "name": "leadgenerator",
-  "version": "0.4.0+codex.20260908210642",
+  "version": "0.4.0+codex.20260908213239",
   "description": "Evidence-backed B2B lead sourcing, qualification, contact enrichment, and confirmed HubSpot synchronization.",
   "author": {
     "name": "Yaka Performance"
@@ -33,7 +33,7 @@
       "Confirmed HubSpot company association, list, and owner assignment"
     ],
     "defaultPrompt": [
-      "Trouve des prospects correspondant \u00e0 mon offre et affiche le parcours visuel complet Lead Generator.",
+      "Je vends une solution de maintenance pr\u00e9dictive aux industriels de 50 \u00e0 250 salari\u00e9s dans les Hauts-de-France : cr\u00e9e l'objectif puis affiche le parcours visuel complet Lead Generator.",
       "Cr\u00e9e un objectif de prospection avec son agent, ses consignes et ses documents.",
       "Montre-moi des entreprises pour le code NAF 62.01Z et laisse-moi les cocher.",
       "Qualifie ma s\u00e9lection et montre le pipeline, les contacts, les visuels et la pr\u00e9paration HubSpot.",

@@ -234,6 +234,14 @@ class ObjectiveState(StrictModel):
 
 RouteStatus = Literal["selected", "ambiguous", "not_applicable", "unconfigured"]
 
+OBJECTIVE_SETUP_PROMPT = (
+    "Quel est votre objectif commercial ? Indiquez ce que vous vendez, les "
+    "entreprises visées, la zone géographique, les interlocuteurs recherchés et "
+    "les signaux utiles. Exemple : « Je vends une solution de maintenance "
+    "prédictive aux industriels de 50 à 250 salariés dans les Hauts-de-France "
+    "et je veux identifier les directeurs de site d'entreprises qui recrutent. »"
+)
+
 
 class RoutingCandidate(StrictModel):
     """One scored objective considered by the deterministic router."""
@@ -837,6 +845,9 @@ class ObjectiveStore:
             return RoutingDecision(
                 status="unconfigured",
                 reason="no_active_objectives",
+                clarification_prompt=(
+                    OBJECTIVE_SETUP_PROMPT if _is_lead_work(message) else None
+                ),
             )
         if len(active) == 1 and _is_lead_work(message):
             objective = active[0]
@@ -849,6 +860,17 @@ class ObjectiveStore:
         )
         plausible = [candidate for candidate in candidates if candidate.score >= 4]
         if not plausible:
+            if _is_lead_work(message):
+                names = ", ".join(candidate.name for candidate in candidates)
+                return RoutingDecision(
+                    status="ambiguous",
+                    reason="lead_work_without_matching_objective",
+                    candidates=candidates,
+                    clarification_prompt=(
+                        "Quel objectif faut-il utiliser pour cette recherche ? "
+                        f"Choisissez parmi : {names}, ou décrivez un nouvel objectif."
+                    ),
+                )
             return RoutingDecision(
                 status="not_applicable",
                 reason="no_plausible_objective",
@@ -1239,6 +1261,7 @@ __all__ = [
     "ObjectiveExample",
     "ObjectiveNote",
     "ObjectiveState",
+    "OBJECTIVE_SETUP_PROMPT",
     "ObjectiveStore",
     "OutputContract",
     "RoutingCandidate",

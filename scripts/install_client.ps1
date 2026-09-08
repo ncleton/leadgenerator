@@ -141,5 +141,6 @@ finally {
 Write-Host ""
 Write-Host "Installation terminee. Le plugin Lead Generator et ses skills sont installes."
 Write-Host "Ouvrez une nouvelle conversation Codex, puis demandez :"
-Write-Host "  Trouvez-moi des prospects et affichez le parcours visuel Lead Generator."
-Write-Host "  Ou : montrez-moi 20 entreprises du code NAF 62.01Z."
+Write-Host "  Trouvez-moi des leads dans l'industrie."
+Write-Host "Sans objectif configure, l'agent doit d'abord demander votre offre et votre cible."
+Write-Host "Apres creation de l'objectif, il lancera la recherche puis l'interface MCP."

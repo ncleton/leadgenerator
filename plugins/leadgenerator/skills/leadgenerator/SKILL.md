@@ -6,7 +6,9 @@ description: Orchestrate objective-scoped, human-reviewed B2B lead work from com
 # Lead Generator
 
 Run the complete experience in the current conversation. Every lead operation is
-owned by a persistent objective agent when an objective applies. Keep observed
+owned by a selected persistent objective agent. The Lead Generator MCP tools are
+the workflow, not an optional presentation layer: never replace them with a generic
+web search, a Markdown-only company list, or an undocumented CLI. Keep observed
 facts, evidence, hypotheses, and missing information separate. Never send outreach.
 
 ## Reuse the private company memory
@@ -39,7 +41,8 @@ private mirror outside Git.
 ## Select the presentation mode
 
 At the start of every lead session, call `get_lead_interface_mode` before
-presenting results. If the user asks in natural language to enable or disable
+any objective resolution, search, browsing, or public research. If the user asks
+in natural language to enable or disable
 visual or contextual interfaces, immediately call `set_lead_interface_mode` with
 one of these values and briefly confirm the change:
 
@@ -50,6 +53,8 @@ The preference persists locally. Never call `render_lead_explorer` or
 `render_lead_workspace` in `text_only` mode; those tools and resources are
 intentionally inaccessible. Continue the research workflow normally and present
 facts, evidence, hypotheses, and missing information as readable text with links.
+Never infer `text_only` from a missing render call: `chat_ui` is the default and
+may be disabled only by the persisted preference set from an explicit user request.
 
 ## Chat UI completion invariant
 
@@ -67,6 +72,11 @@ are available.
   `render_lead_explorer` with the sourced facts, coordinates, and missing fields.
 - If no company matches, still render the empty explorer so the user sees the
   applied view and can refine the request.
+
+Never say that the explorer or workspace was displayed unless its render tool
+succeeded in the current turn. If an MCP tool or resource is unavailable, stop
+and explain that the plugin installation must be repaired; do not silently fall
+back to web search or claim that a UI was shown.
 
 The map/list is the sourcing view. Show it immediately. After the user selects
 leads or after each material qualification step, call `render_lead_workspace` so
@@ -129,7 +139,14 @@ the UI, and attachment names. Apply its result exactly:
   durable document context for the rest of the turn.
 - `ambiguous`: ask one concise clarification naming only the plausible objectives.
   Do not search, scrape, enrich, or render a lead result until the user chooses.
-- `none`: continue in the general Lead Generator scope only when no objective applies.
+- `unconfigured`: ask the returned `clarification_prompt`, including its concrete
+  example, then stop. Do not search, browse, enrich, or render a lead result.
+- `not_applicable`: return to the general assistant only for a genuinely non-lead
+  request. Never use this state to run lead sourcing without an objective.
+
+Treat `research_authorized: false` as a hard gate. The only valid next action is
+the returned clarification or a return to the general assistant; it never permits
+a preliminary registry search.
 
 An explicit UI objective or a conversation already attached to an objective wins.
 With one active objective, select it automatically for lead work without asking.
@@ -148,8 +165,8 @@ creating, editing, routing, or attaching context to an objective agent.
 
 ## Start every lead session
 
-After reading the interface mode, read the local user profile with
-`get_lead_user_profile` before asking who is selling.
+After reading the interface mode and obtaining a selected objective, read the
+local user profile with `get_lead_user_profile` before asking who is selling.
 
 When it exists, reuse its seller name, company, and website without asking again.
 When it is absent, ask once for the missing seller identity and save the confirmed
@@ -181,8 +198,11 @@ Read [references/integrations.md](references/integrations.md) for setup details.
 
 ## Route the request
 
-1. Resolve and activate the objective agent. Establish its offer, ideal company,
-   geography, exclusions, target roles, examples, and useful commercial signals.
+1. Call `get_lead_interface_mode`, then resolve and activate the objective agent
+   before any other lead tool or public research. If research is not authorized,
+   ask the returned question and stop. Establish the selected objective's offer,
+   ideal company, geography, exclusions, target roles, examples, and useful
+   commercial signals.
    Reuse the local user identity and migrate a saved legacy offer profile when it
    exists; do not silently merge two objectives.
 2. For a named company, check `search_remembered_companies` first. Otherwise,

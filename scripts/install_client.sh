@@ -133,5 +133,6 @@ trap - EXIT
 echo
 echo "Installation terminee. Le plugin Lead Generator et ses skills sont installes."
 echo "Ouvre une nouvelle conversation Codex, puis demande :"
-echo "  Trouve-moi des prospects et affiche le parcours visuel Lead Generator."
-echo "  Ou : montre-moi 20 entreprises du code NAF 62.01Z."
+echo "  Trouve-moi des leads dans l'industrie."
+echo "Sans objectif configure, l'agent doit d'abord te demander ton offre et ta cible."
+echo "Apres creation de l'objectif, il lancera la recherche puis l'interface MCP."

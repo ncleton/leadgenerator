@@ -207,10 +207,15 @@ class LeadGeneratorServer(MCPServer):
 SERVER_INSTRUCTIONS = """
 This local server exposes public research, local profile and preference storage,
 optional reviewable UI, and controlled enrichment and CRM actions for Lead Generator.
-Resolve the persistent objective agent before every lead workflow; if routing is
-ambiguous, ask the returned clarification and do not research yet. Keep each
-lead, note, document, and follow-up scoped to exactly one objective. Read the
-interface preference before presenting leads. Use public-page tools
+Begin every lead request with get_lead_interface_mode and resolve_lead_objective,
+before any search, browsing, or public research. Research is forbidden unless
+resolve_lead_objective returns research_authorized=true. When it is false, ask
+the returned clarification_prompt and stop. Keep each lead, note, document, and
+follow-up scoped to exactly one objective. In chat_ui mode, every multi-company
+search is incomplete until render_lead_explorer succeeds in the current turn;
+never claim that an explorer or workspace was displayed without the corresponding
+render tool call. Do not replace an unavailable Lead Generator MCP tool with a
+generic web search or undocumented CLI. Use public-page tools
 only for a company URL supplied or approved by the user. A click in a UI is a
 request to continue the conversation, never authorization for a paid lookup or
 CRM write. Paid enrichment and HubSpot tools require an explicit confirmation
@@ -969,7 +974,9 @@ def update_lead_objective(
     title="Résoudre l'objectif actif",
     description=(
         "Route a lead request to an explicit, sticky, unique, or semantic objective. "
-        "Ambiguous requests return a clarification and no agent context."
+        "Call this after get_lead_interface_mode and before every search or public "
+        "research. Research may start only when research_authorized is true. "
+        "Unconfigured or ambiguous requests return the exact clarification to ask."
     ),
     annotations=ToolAnnotations(
         readOnlyHint=False,
@@ -994,6 +1001,15 @@ def resolve_lead_objective(
     result: dict[str, object] = {
         "decision": decision.model_dump(mode="json"),
         "research_authorized": decision.status == "selected",
+        "next_action": (
+            "activate_objective"
+            if decision.status == "selected"
+            else (
+                "ask_clarification"
+                if decision.clarification_prompt
+                else "return_to_general_assistant"
+            )
+        ),
     }
     if decision.status == "selected" and decision.objective_id:
         bundle = store.context_bundle(decision.objective_id)
@@ -1324,7 +1340,8 @@ def sync_hubspot_contacts(
     name="search_french_companies",
     title="Trouver des entreprises françaises",
     description=(
-        "CALL THIS TOOL whenever the user asks to find, list, show, source, or "
+        "CALL THIS TOOL only after resolve_lead_objective returned "
+        "research_authorized=true, whenever the user asks to find, list, show, source, or "
         "discover French companies, leads, or prospects using several criteria "
         "such as NAF codes, geography, category, or employee bands. It returns "
         "official public-register facts and direct source links in either "
@@ -1507,7 +1524,8 @@ def _company_record_to_lead(company: dict[str, object]) -> LeadViewItem | None:
     name="search_companies_by_naf",
     title="Rechercher des entreprises par code NAF",
     description=(
-        "CALL THIS TOOL for every request to find, list, show, source, or discover "
+        "CALL THIS TOOL only after resolve_lead_objective returned "
+        "research_authorized=true, for every request to find, list, show, source, or discover "
         "companies, leads, or prospects from one explicit French NAF/APE code. "
         "This is the preferred single-NAF search tool and returns sourced public "
         "records in either presentation mode. Do not use search_french_companies "

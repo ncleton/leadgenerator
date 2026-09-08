@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 from leadgenerator.mcp.server import (
+    SERVER_INSTRUCTIONS,
     _enforce_allowed_host,
     _render_lead_explorer_tool,
     check_lead_integrations,
@@ -14,6 +15,7 @@ from leadgenerator.mcp.server import (
     lead_explorer_ui,
     render_lead_explorer,
     render_lead_workspace,
+    resolve_lead_objective,
     scrape_public_page,
     search_companies_by_naf,
     search_french_companies,
@@ -24,6 +26,7 @@ from leadgenerator.persistence.company_memory import (
     CompanyMemoryResult,
     company_identity_key,
 )
+from leadgenerator.profiles.objectives import ObjectiveStore
 from leadgenerator.profiles.preferences import LeadGeneratorPreferences
 from leadgenerator.research.visuals import VisualCandidate
 from leadgenerator.ui.explorer import (
@@ -399,6 +402,30 @@ def test_server_advertises_mcp_apps_extension():
     capabilities = server._lowlevel_server.get_capabilities()
 
     assert capabilities.extensions == {"io.modelcontextprotocol/ui": {}}
+
+
+def test_server_instructions_require_objective_gate_and_real_ui_render():
+    """The model cannot research first or merely claim that it rendered the app."""
+    assert "before any search, browsing, or public research" in SERVER_INSTRUCTIONS
+    assert "research_authorized=true" in SERVER_INSTRUCTIONS
+    assert "render_lead_explorer succeeds" in SERVER_INSTRUCTIONS
+    assert "never claim that an explorer or workspace was displayed" in (
+        SERVER_INSTRUCTIONS
+    )
+
+
+def test_resolver_blocks_research_and_returns_the_objective_example(
+    monkeypatch, tmp_path
+):
+    """An unconfigured installation gets one useful question before any search."""
+    store = ObjectiveStore(tmp_path / "objectives")
+    monkeypatch.setattr("leadgenerator.mcp.server.ObjectiveStore", lambda: store)
+
+    result = resolve_lead_objective("Trouve-moi des leads dans l'industrie")
+
+    assert result["research_authorized"] is False
+    assert result["next_action"] == "ask_clarification"
+    assert "Exemple" in result["decision"]["clarification_prompt"]
 
 
 def test_search_result_cannot_be_rendered_as_a_second_explorer(monkeypatch):

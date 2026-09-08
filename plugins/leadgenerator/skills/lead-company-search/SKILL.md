@@ -7,6 +7,11 @@ description: Translate a human B2B prospecting request into French NAF/APE, geog
 
 Convert the user's business description into explicit filters before searching.
 
+This skill may run only after `resolve_lead_objective` selected an objective and
+returned `research_authorized: true`. If no objective is configured or selected,
+ask its returned clarification (including the example) and stop before mapping a
+NAF code or calling any company-search service.
+
 1. Preserve exact criteria: activity, geography, exclusions, legal category, and
    employee bounds. Do not silently widen them.
 2. Map the activity to one or more five-character NAF subclass codes. Show the
@@ -44,6 +49,8 @@ Convert the user's business description into explicit filters before searching.
    concise list with direct legal-source links.
    If the MCP server is unavailable, explain that the local plugin must be repaired
    instead of silently switching to an undocumented CLI.
+   Never claim that the explorer was displayed unless the render call succeeded
+   in the current turn.
 5. Present legal facts separately from later web qualifications. A registry entry
    is a candidate company, not yet a qualified lead.
 6. When the user asks for more results, increment `page` and preserve every prior
