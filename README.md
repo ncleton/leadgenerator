@@ -25,6 +25,8 @@
     <a href="https://docs.pytest.org/"><img src="https://img.shields.io/badge/pytest-126_tests-0A9EDC?style=flat-square&logo=pytest&logoColor=white" alt="pytest"></a>
     <a href="https://docs.astral.sh/ruff/"><img src="https://img.shields.io/badge/Ruff-checked-D7FF64?style=flat-square&logo=ruff&logoColor=111111" alt="Ruff"></a>
     <a href="https://black.readthedocs.io/"><img src="https://img.shields.io/badge/Black-formatted-000000?style=flat-square&logo=python&logoColor=white" alt="Black"></a>
+    <a href="https://enrow.io/"><img src="https://img.shields.io/badge/Enrow-first_pass-263238?style=flat-square" alt="Enrow contact enrichment"></a>
+    <a href="https://fullenrich.com/"><img src="https://img.shields.io/badge/FullEnrich-confirmed_fallback-635BFF?style=flat-square" alt="FullEnrich contact enrichment"></a>
     <a href="https://developers.hubspot.com/"><img src="https://img.shields.io/badge/HubSpot-confirmed_writes-FF7A59?style=flat-square&logo=hubspot&logoColor=white" alt="HubSpot"></a>
   </p>
 </div>
@@ -38,6 +40,25 @@ lorsque plusieurs objectifs sont plausibles. Chaque installation choisit
 entre une interface contextuelle dans le chat et un mode minimal avec uniquement
 du texte et des liens. L'enrichissement payant et l'écriture HubSpot restent
 bloqués jusqu'à une confirmation explicite.
+
+## Enrichissement des contacts avec Enrow et FullEnrich
+
+Lead Generator enrichit uniquement un contact professionnel dont l'identité a
+été vérifiée. La cascade recherche l'**e-mail professionnel** et, lorsque les
+conditions du fournisseur sont remplies, le **téléphone professionnel** :
+
+1. **Enrow passe en premier**, car il constitue la source prioritaire et la moins
+   coûteuse pour la recherche demandée.
+2. **FullEnrich intervient en recours** seulement lorsqu'Enrow a terminé sans
+   trouver le champ demandé, afin d'améliorer la couverture et la recherche de
+   mobile.
+3. Chaque appel payant exige une **confirmation humaine explicite**. Le recours à
+   FullEnrich fait l'objet d'une seconde confirmation ciblée sur les données
+   encore manquantes.
+
+Les résultats restent rattachés à l'identité professionnelle et à leurs preuves.
+Lead Generator n'invente aucune coordonnée et ne contacte jamais la personne
+automatiquement.
 
 ## Structure du dépôt
 
