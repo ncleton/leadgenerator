@@ -21,12 +21,12 @@ htmlcov/
 .ruff_cache/
 .mypy_cache/
 
-# Lead Studio local state and exports
+# Lead Generator local state and exports
 outputs/
 *.sqlite
 *.google-cookie
 
-# Private Lead Studio user and client data
+# Private Lead Generator user and client data
 **/user-profile.json
 **/offer-profiles/
 **/client-data/

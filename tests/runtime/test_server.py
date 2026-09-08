@@ -1,4 +1,4 @@
-"""Tests for the Lead Studio local MCP tool and UI boundaries."""
+"""Tests for the Lead Generator local MCP tool and UI boundaries."""
 
 import asyncio
 import json
@@ -557,7 +557,7 @@ def test_explorer_shows_progress_before_payload_and_while_map_tiles_load():
 
         assert (
             page.get_by_role("status")
-            .get_by_text("Chargement de Lead Studio…")
+            .get_by_text("Chargement de Lead Generator…")
             .is_visible()
         )
 
@@ -933,7 +933,7 @@ def test_registered_render_tool_does_not_duplicate_payload_in_text_content():
     result = _render_lead_explorer_tool([lead])
 
     assert isinstance(result, CallToolResult)
-    assert result.content[0].text == "Lead Studio prêt : 1 entreprise à parcourir."
+    assert result.content[0].text == "Lead Generator prêt : 1 entreprise à parcourir."
     assert result.structured_content["leads"] == [
         {"id": "example", "company_name": "Example"}
     ]

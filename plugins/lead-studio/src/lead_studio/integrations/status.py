@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict
 
 
 class IntegrationStatus(BaseModel):
-    """User-facing state for one optional Lead Studio integration."""
+    """User-facing state for one optional Lead Generator integration."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -30,7 +30,7 @@ INTEGRATIONS = {
         "header": "x-api-key",
         "purpose": "Trouver d'abord des emails professionnels à moindre coût.",
         "recommendation": (
-            "Optionnel : moins cher, mais moins couvrant. Lead Studio l'essaie "
+            "Optionnel : moins cher, mais moins couvrant. Lead Generator l'essaie "
             "avant FullEnrich quand les deux sont connectés."
         ),
     },

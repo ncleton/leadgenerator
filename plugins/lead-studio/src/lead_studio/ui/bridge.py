@@ -1,4 +1,4 @@
-"""Small self-contained MCP Apps bridge shared by Lead Studio interfaces."""
+"""Small self-contained MCP Apps bridge shared by Lead Generator interfaces."""
 
 from __future__ import annotations
 
@@ -71,7 +71,7 @@ MCP_APP_BRIDGE_JS = r"""
   void (async () => {
     try {
       const result = await request("ui/initialize", {
-        appInfo: {name: "Lead Studio", version: "0.3.0"},
+        appInfo: {name: "Lead Generator", version: "0.3.1"},
         appCapabilities: {availableDisplayModes: ["inline", "fullscreen"]},
         protocolVersion: "2026-01-26",
       });
@@ -81,7 +81,7 @@ MCP_APP_BRIDGE_JS = r"""
       connected = true;
     } catch(error) {
       // Older OpenAI hosts expose window.openai instead of the MCP Apps channel.
-      console.debug("Lead Studio MCP Apps handshake unavailable", error);
+      console.debug("Lead Generator MCP Apps handshake unavailable", error);
     }
   })();
 })();

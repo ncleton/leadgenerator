@@ -6,7 +6,7 @@ dependencies:
   tools:
     - type: "mcp"
       value: "lead-studio"
-      description: "Outils locaux de recherche et de revue Lead Studio"
+      description: "Outils locaux de recherche et de revue Lead Generator"
       transport: "stdio"
 policy:
   allow_implicit_invocation: true

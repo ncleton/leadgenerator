@@ -1,4 +1,4 @@
-"""Local MCP tools available to the Lead Studio Codex agent."""
+"""Local MCP tools available to the Lead Generator Codex agent."""
 
 from __future__ import annotations
 
@@ -127,7 +127,7 @@ def _require_interface_resource() -> None:
     """Prevent direct reads of MCP Apps while text-only mode is active."""
     if not _interface_enabled():
         raise ResourceError(
-            "Le mode interface est désactivé pour cette installation Lead Studio."
+            "Le mode interface est désactivé pour cette installation Lead Generator."
         )
 
 
@@ -153,7 +153,7 @@ class LeadStudioServer(MCPServer):
 
 SERVER_INSTRUCTIONS = """
 This local server exposes public research, local profile and preference storage,
-optional reviewable UI, and controlled enrichment and CRM actions for Lead Studio.
+optional reviewable UI, and controlled enrichment and CRM actions for Lead Generator.
 Resolve the persistent objective agent before every lead workflow; if routing is
 ambiguous, ask the returned clarification and do not research yet. Keep each
 lead, note, document, and follow-up scoped to exactly one objective. Read the
@@ -169,8 +169,8 @@ destinations.
 
 server = LeadStudioServer(
     name="lead_studio",
-    title="Lead Studio local tools",
-    description="Research and human-reviewed lead workflow tools for Lead Studio.",
+    title="Lead Generator local tools",
+    description="Research and human-reviewed lead workflow tools for Lead Generator.",
     instructions=SERVER_INSTRUCTIONS,
     extensions=[Apps()],
 )
@@ -179,10 +179,10 @@ server = LeadStudioServer(
 @server.resource(
     LEAD_EXPLORER_UI_URI,
     name="lead-studio-explorer",
-    title="Explorateur de leads Lead Studio",
+    title="Explorateur de leads Lead Generator",
     description=(
         "Carte interactive, liste par code NAF, fiches sourcées et shortlist "
-        "humaine pour les leads Lead Studio."
+        "humaine pour les leads Lead Generator."
     ),
     mime_type="text/html;profile=mcp-app",
     meta=LEAD_EXPLORER_RESOURCE_META,
@@ -196,7 +196,7 @@ def lead_explorer_ui() -> str:
 @server.resource(
     LEAD_WORKSPACE_UI_URI,
     name="lead-studio-workspace",
-    title="Parcours visuel Lead Studio",
+    title="Parcours visuel Lead Generator",
     description=(
         "Workspace interactif pour suivre les entreprises, décideurs, visuels, "
         "enrichissements et la préparation HubSpot."
@@ -205,7 +205,7 @@ def lead_explorer_ui() -> str:
     meta=LEAD_WORKSPACE_RESOURCE_META,
 )
 def lead_workspace_ui() -> str:
-    """Return the self-contained end-to-end Lead Studio workspace."""
+    """Return the self-contained end-to-end Lead Generator workspace."""
     _require_interface_resource()
     return LEAD_WORKSPACE_HTML
 
@@ -217,8 +217,8 @@ def _register_legacy_interface_resources() -> None:
         server.resource(
             legacy_uri,
             name=f"lead-studio-explorer-legacy-{version}",
-            title="Explorateur de leads Lead Studio",
-            description="Alias compatible vers l'explorateur Lead Studio actuel.",
+            title="Explorateur de leads Lead Generator",
+            description="Alias compatible vers l'explorateur Lead Generator actuel.",
             mime_type="text/html;profile=mcp-app",
             meta=LEAD_EXPLORER_RESOURCE_META,
         )(lead_explorer_ui)
@@ -228,8 +228,8 @@ def _register_legacy_interface_resources() -> None:
         server.resource(
             legacy_uri,
             name=f"lead-studio-workspace-legacy-{version}",
-            title="Parcours visuel Lead Studio",
-            description="Alias compatible vers le workspace Lead Studio actuel.",
+            title="Parcours visuel Lead Generator",
+            description="Alias compatible vers le workspace Lead Generator actuel.",
             mime_type="text/html;profile=mcp-app",
             meta=LEAD_WORKSPACE_RESOURCE_META,
         )(lead_workspace_ui)
@@ -434,7 +434,7 @@ def inspect_person_profile_images(
 
 @server.tool(
     name="check_lead_integrations",
-    title="Vérifier les connexions Lead Studio",
+    title="Vérifier les connexions Lead Generator",
     description=(
         "Check whether Enrow, FullEnrich, and HubSpot are configured and explain "
         "their roles. Verification never launches a paid lookup or CRM write."
@@ -474,9 +474,9 @@ def _interface_status(preferences: LeadStudioPreferences) -> dict[str, object]:
 
 @server.tool(
     name="get_lead_interface_mode",
-    title="Lire le mode d'affichage Lead Studio",
+    title="Lire le mode d'affichage Lead Generator",
     description=(
-        "Read the local Lead Studio presentation preference before sourcing or "
+        "Read the local Lead Generator presentation preference before sourcing or "
         "presenting leads. chat_ui permits contextual interfaces; text_only "
         "requires plain chat text and source links and makes UI tools unavailable."
     ),
@@ -495,9 +495,9 @@ def get_lead_interface_mode() -> dict[str, object]:
 
 @server.tool(
     name="set_lead_interface_mode",
-    title="Changer le mode d'affichage Lead Studio",
+    title="Changer le mode d'affichage Lead Generator",
     description=(
-        "Persist the user's explicit request to switch Lead Studio between "
+        "Persist the user's explicit request to switch Lead Generator between "
         "chat_ui and text_only. The text_only mode immediately blocks and hides "
         "all contextual UI tools and resources until the user enables chat_ui."
     ),
@@ -528,7 +528,7 @@ async def set_lead_interface_mode(
     name="get_lead_user_profile",
     title="Lire le profil vendeur local",
     description=(
-        "Read the local seller identity reused by Lead Studio. Returns no secret "
+        "Read the local seller identity reused by Lead Generator. Returns no secret "
         "and does not access an external service."
     ),
     annotations=ToolAnnotations(
@@ -1190,7 +1190,7 @@ def search_french_companies(
     page_size: int = 10,
     objective_id: str = "",
 ) -> dict[str, object]:
-    """Return public legal facts inside the interactive Lead Studio contract."""
+    """Return public legal facts inside the interactive Lead Generator contract."""
     search = CompanySearchRequest(
         query=query,
         naf_codes=naf_codes or [],
@@ -1383,7 +1383,7 @@ def _mcp_app_result(payload: dict[str, object], summary: str) -> CallToolResult:
 
 @server.tool(
     name="render_lead_explorer",
-    title="Afficher les leads dans Lead Studio",
+    title="Afficher les leads dans Lead Generator",
     description=(
         "CALL THIS TOOL whenever several leads have already been researched and "
         "the user asked to find, list, show, compare, map, or select them. The task "
@@ -1421,7 +1421,7 @@ def _render_lead_explorer_tool(
     count = len(payload["leads"])
     return _mcp_app_result(
         payload,
-        f"Lead Studio prêt : {count} entreprise{'s' if count != 1 else ''} à parcourir.",
+        f"Lead Generator prêt : {count} entreprise{'s' if count != 1 else ''} à parcourir.",
     )  # type: ignore[return-value]
 
 
@@ -1457,7 +1457,7 @@ def render_lead_workspace(
 
 @server.tool(
     name="render_lead_workspace",
-    title="Afficher le parcours complet Lead Studio",
+    title="Afficher le parcours complet Lead Generator",
     description=(
         "CALL THIS TOOL after sourcing or after any qualification phase to render "
         "the complete interactive pipeline: company description and news, distinct "
@@ -1506,7 +1506,7 @@ def _render_lead_workspace_tool(
     count = len(payload["leads"])
     return _mcp_app_result(
         payload,
-        f"Workspace Lead Studio prêt : {count} entreprise{'s' if count != 1 else ''}.",
+        f"Workspace Lead Generator prêt : {count} entreprise{'s' if count != 1 else ''}.",
     )  # type: ignore[return-value]
 
 

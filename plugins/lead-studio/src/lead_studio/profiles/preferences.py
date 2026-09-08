@@ -1,4 +1,4 @@
-"""Private local presentation preferences for Lead Studio."""
+"""Private local presentation preferences for Lead Generator."""
 
 from __future__ import annotations
 

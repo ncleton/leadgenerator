@@ -1,4 +1,4 @@
-"""Tests for the lightweight Lead Studio browser collector."""
+"""Tests for the lightweight Lead Generator browser collector."""
 
 from lead_studio.research.browser import html_to_markdown
 

@@ -1,4 +1,4 @@
-# Outils Lead Studio
+# Outils Lead Generator
 
 Le serveur MCP est l'unique porte d'entrée du runtime. Conserver les données
 structurées retournées comme source de vérité et respecter l'effet déclaré de

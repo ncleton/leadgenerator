@@ -1,13 +1,13 @@
-# Architecture de Lead Studio
+# Architecture de Lead Generator
 
-Lead Studio suit le modèle de distribution Codex : un marketplace local référence
+Lead Generator suit le modèle de distribution Codex : un marketplace local référence
 un plugin autonome ; le plugin embarque ses skills et un serveur MCP local.
 
 ```text
 Demande utilisateur
         │
         ▼
-Skill Lead Studio ──► outils MCP ──► modules Python spécialisés
+Skill Lead Generator ──► outils MCP ──► modules Python spécialisés
         │                 │
         │                 ├── objectifs + agents 1:1
         │                 ├── routage + contexte documentaire
@@ -61,7 +61,7 @@ caches et rapports de couverture.
 
 La collecte repose directement sur Playwright, Beautiful Soup et `html2text`.
 Le dépôt n'embarque aucun framework générique inutilisé : seules les dépendances
-nécessaires au runtime Lead Studio sont conservées.
+nécessaires au runtime Lead Generator sont conservées.
 
 L'enrichissement payant maintient un état de cascade lié à l'identité : Enrow
 doit terminer avant qu'un manque précis puisse recevoir une nouvelle confirmation

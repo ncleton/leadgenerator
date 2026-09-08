@@ -1,4 +1,4 @@
-# Agents d'objectif Lead Studio
+# Agents d'objectif Lead Generator
 
 An objective and its agent are separate private records. Recompiling or updating
 the commercial objective must not erase the agent's name, instructions, durable

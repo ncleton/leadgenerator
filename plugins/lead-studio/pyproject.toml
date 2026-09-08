@@ -1,10 +1,10 @@
 [project]
-name = "lead-studio-agent"
-version = "0.3.0"
+name = "lead-generator-agent"
+version = "0.3.1"
 description = "Human-reviewed B2B research plugin for ChatGPT and Codex."
 requires-python = ">=3.13,<4.0"
 license = { text = "MIT" }
-authors = [{ name = "Petitmaker" }]
+authors = [{ name = "Yaka Performance" }]
 dependencies = [
     "beautifulsoup4>=4.14.3",
     "html2text>=2025.4.15",
