@@ -15,14 +15,14 @@ must require explicit human confirmation at the point of action.
 
 ## Architecture
 
-- `plugins/lead-studio/.codex-plugin/plugin.json`: Codex plugin manifest.
-- `plugins/lead-studio/.mcp.json`: local STDIO MCP server declaration.
-- `plugins/lead-studio/skills/`: canonical conversational skills.
-- `plugins/lead-studio/src/lead_studio/research/`: public research and URL safety.
-- `plugins/lead-studio/src/lead_studio/integrations/`: guarded external services.
-- `plugins/lead-studio/src/lead_studio/profiles/`: local seller and offer profiles.
-- `plugins/lead-studio/src/lead_studio/ui/`: MCP Apps payloads and HTML resources.
-- `plugins/lead-studio/src/lead_studio/mcp/`: tool and resource boundary.
+- `plugins/leadgenerator/.codex-plugin/plugin.json`: Codex plugin manifest.
+- `plugins/leadgenerator/.mcp.json`: local STDIO MCP server declaration.
+- `plugins/leadgenerator/skills/`: canonical conversational skills.
+- `plugins/leadgenerator/src/leadgenerator/research/`: public research and URL safety.
+- `plugins/leadgenerator/src/leadgenerator/integrations/`: guarded external services.
+- `plugins/leadgenerator/src/leadgenerator/profiles/`: local seller and offer profiles.
+- `plugins/leadgenerator/src/leadgenerator/ui/`: MCP Apps payloads and HTML resources.
+- `plugins/leadgenerator/src/leadgenerator/mcp/`: tool and resource boundary.
 - `tests/`: tests grouped by the same runtime responsibilities.
 - `docs/`: architecture, file classification, and safety documentation.
 
@@ -35,7 +35,7 @@ must require explicit human confirmation at the point of action.
 - Keep the French product interface concise and accessible.
 - Never commit secrets, browser profiles, scraped datasets, or files in `outputs/`.
 - Never put seller or client profile values in a skill, guide, fixture, or other
-  shareable artifact. Keep profiles only below `~/.codex/lead-studio/`.
+  shareable artifact. Keep profiles only below `~/.codex/leadgenerator/`.
 - Do not hand-edit `uv.lock` or plugin cache-buster versions.
 
 Run the canonical validation command before pushing:
@@ -44,7 +44,7 @@ Run the canonical validation command before pushing:
 ./scripts/validate.sh
 ```
 
-When dependencies change, run `uv lock --project plugins/lead-studio`. When the
+When dependencies change, run `uv lock --project plugins/leadgenerator`. When the
 plugin changes, run the official plugin cache-buster helper and both plugin and
 skill validators before reinstalling it with `./scripts/install_client.sh` on
 macOS/Linux or `scripts/install_client.ps1` on Windows. Never run `codex plugin

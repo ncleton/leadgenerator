@@ -5,6 +5,25 @@ All notable changes to Lead Generator are documented here. The project follows
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-08
+
+### Added
+
+- Private local PostgreSQL memory for complete company cards, including
+  SIREN/domain deduplication, retrieval and immutable snapshots.
+- Private readable JSON export under `.agent-private/leadgenerator/database/`.
+- Dedicated README documentation and badges for the guarded Enrow-to-FullEnrich
+  professional contact enrichment cascade.
+
+### Changed
+
+- Plugin, Python package, commands, environment variables and local storage paths
+  renamed consistently from `lead-studio` to `leadgenerator`.
+- Public-facing product name normalized to **Lead Generator** and first-party
+  attribution retained as **Yaka Performance**.
+- New sourcing results exclude companies already present in private memory by
+  default while continuing to update their stored records.
+
 ## [0.3.1] - 2026-09-08
 
 ### Added
@@ -26,6 +45,7 @@ All notable changes to Lead Generator are documented here. The project follows
 - Guarded Enrow-to-FullEnrich enrichment and confirmed HubSpot synchronization.
 - Cross-platform local installation and privacy validation.
 
-[Unreleased]: https://github.com/ncleton/leadgenerator/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/ncleton/leadgenerator/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/ncleton/leadgenerator/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/ncleton/leadgenerator/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/ncleton/leadgenerator/releases/tag/v0.3.0

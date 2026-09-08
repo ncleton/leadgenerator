@@ -2,7 +2,7 @@
 
 import json
 
-from lead_studio.ui.models import (
+from leadgenerator.ui.models import (
     HubSpotPreview,
     IntegrationView,
     LeadContactView,
@@ -11,7 +11,7 @@ from lead_studio.ui.models import (
     ObservedFact,
     lead_workspace_payload,
 )
-from lead_studio.ui.workspace import LEAD_WORKSPACE_HTML
+from leadgenerator.ui.workspace import LEAD_WORKSPACE_HTML
 from playwright.sync_api import sync_playwright
 
 

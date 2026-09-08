@@ -5,7 +5,7 @@ import json
 from types import SimpleNamespace
 
 import pytest
-from lead_studio.mcp.server import (
+from leadgenerator.mcp.server import (
     _enforce_allowed_host,
     _render_lead_explorer_tool,
     check_lead_integrations,
@@ -20,14 +20,18 @@ from lead_studio.mcp.server import (
     server,
     set_lead_interface_mode,
 )
-from lead_studio.profiles.preferences import LeadStudioPreferences
-from lead_studio.research.visuals import VisualCandidate
-from lead_studio.ui.explorer import (
+from leadgenerator.persistence.company_memory import (
+    CompanyMemoryResult,
+    company_identity_key,
+)
+from leadgenerator.profiles.preferences import LeadGeneratorPreferences
+from leadgenerator.research.visuals import VisualCandidate
+from leadgenerator.ui.explorer import (
     LEAD_EXPLORER_HTML,
     LEAD_EXPLORER_LEGACY_UI_URIS,
     LEAD_EXPLORER_UI_URI,
 )
-from lead_studio.ui.models import (
+from leadgenerator.ui.models import (
     HubSpotPreview,
     IntegrationView,
     LeadContactView,
@@ -36,7 +40,7 @@ from lead_studio.ui.models import (
     LeadViewItem,
     LeadVisualView,
 )
-from lead_studio.ui.workspace import (
+from leadgenerator.ui.workspace import (
     LEAD_WORKSPACE_LEGACY_UI_URIS,
     LEAD_WORKSPACE_UI_URI,
 )
@@ -47,16 +51,56 @@ from playwright.sync_api import sync_playwright
 
 @pytest.fixture(autouse=True)
 def default_chat_ui_mode(monkeypatch: pytest.MonkeyPatch):
-    """Keep runtime tests independent from the developer's local preference."""
+    """Keep runtime tests independent from local preferences and PostgreSQL."""
+
+    class MemoryStub:
+        def __init__(self):
+            self.keys: set[str] = set()
+            self.rows: list[dict[str, object]] = []
+
+        def remember(self, leads, **_kwargs):
+            incoming = {company_identity_key(lead) for lead in leads}
+            existing = incoming & self.keys
+            new = incoming - self.keys
+            self.keys.update(incoming)
+            return CompanyMemoryResult(
+                new_keys=frozenset(new),
+                existing_keys=frozenset(existing),
+                stored_count=len(self.keys),
+            )
+
+        def status(self):
+            return {
+                "backend": "postgresql",
+                "connected": True,
+                "stored_companies": len(self.keys),
+                "stored_snapshots": len(self.keys),
+            }
+
+        def find(self, **_kwargs):
+            return self.rows
+
+        def history(self, _company_key, **_kwargs):
+            return []
+
+        def export_visible(self, destination):
+            return {
+                "directory": str(destination),
+                "index_file": f"{destination}/index.json",
+                "company_count": len(self.keys),
+                "snapshot_count": len(self.keys),
+            }
+
     monkeypatch.setattr(
-        "lead_studio.mcp.server.load_preferences",
-        lambda: LeadStudioPreferences(interface_mode="chat_ui"),
+        "leadgenerator.mcp.server.load_preferences",
+        lambda: LeadGeneratorPreferences(interface_mode="chat_ui"),
     )
+    monkeypatch.setattr("leadgenerator.mcp.server.company_memory", MemoryStub())
 
 
 def test_mcp_tool_accepts_only_configured_host(monkeypatch: pytest.MonkeyPatch):
     """The agent cannot redirect its research action to another company."""
-    monkeypatch.setenv("LEAD_STUDIO_ALLOWED_HOST", "www.example.com")
+    monkeypatch.setenv("LEADGENERATOR_ALLOWED_HOST", "www.example.com")
 
     _enforce_allowed_host("https://example.com/about")
 
@@ -68,7 +112,7 @@ def test_mcp_tool_allows_public_url_without_process_scope(
     monkeypatch: pytest.MonkeyPatch,
 ):
     """The packaged server works directly when no nested-agent scope is set."""
-    monkeypatch.delenv("LEAD_STUDIO_ALLOWED_HOST", raising=False)
+    monkeypatch.delenv("LEADGENERATOR_ALLOWED_HOST", raising=False)
 
     _enforce_allowed_host("https://example.com")
 
@@ -79,10 +123,10 @@ def test_mcp_tool_allows_public_url_without_process_scope(
 def test_mcp_tool_uses_user_selected_browser_mode(monkeypatch: pytest.MonkeyPatch):
     """Visible mode is translated to a headed local Chromium run."""
     calls = {}
-    monkeypatch.setenv("LEAD_STUDIO_ALLOWED_HOST", "example.com")
-    monkeypatch.setenv("LEAD_STUDIO_BROWSER_MODE", "visible")
+    monkeypatch.setenv("LEADGENERATOR_ALLOWED_HOST", "example.com")
+    monkeypatch.setenv("LEADGENERATOR_BROWSER_MODE", "visible")
     monkeypatch.setattr(
-        "lead_studio.mcp.server._scrape_page",
+        "leadgenerator.mcp.server._scrape_page",
         lambda url, *, headless: calls.update(url=url, headless=headless) or "page",
     )
 
@@ -94,9 +138,9 @@ def test_mcp_tool_uses_user_selected_browser_mode(monkeypatch: pytest.MonkeyPatc
 
 def test_visual_tool_keeps_same_company_scope(monkeypatch: pytest.MonkeyPatch):
     """Visual discovery cannot redirect the agent to another company domain."""
-    monkeypatch.setenv("LEAD_STUDIO_ALLOWED_HOST", "example.com")
+    monkeypatch.setenv("LEADGENERATOR_ALLOWED_HOST", "example.com")
     monkeypatch.setattr(
-        "lead_studio.mcp.server.discover_official_visuals",
+        "leadgenerator.mcp.server.discover_official_visuals",
         lambda _url, *, headless: [
             VisualCandidate(
                 kind="logo",
@@ -117,7 +161,7 @@ def test_visual_tool_keeps_same_company_scope(monkeypatch: pytest.MonkeyPatch):
 def test_structured_company_search_returns_public_limitations(monkeypatch):
     """The broad company tool returns limitations inside the UI contract."""
     monkeypatch.setattr(
-        "lead_studio.mcp.server.run_company_search",
+        "leadgenerator.mcp.server.run_company_search",
         lambda _search: SimpleNamespace(
             model_dump=lambda: {
                 "employee_filter_exact": False,
@@ -135,14 +179,67 @@ def test_structured_company_search_returns_public_limitations(monkeypatch):
     assert result["limitations"]
 
 
+def test_company_search_excludes_a_company_already_in_private_memory(monkeypatch):
+    """A repeated public-directory row is stored but hidden from new sourcing."""
+    company = {
+        "name": "Example SAS",
+        "siren": "123456789",
+        "legal_page_url": (
+            "https://annuaire-entreprises.data.gouv.fr/entreprise/123456789"
+        ),
+    }
+    monkeypatch.setattr(
+        "leadgenerator.mcp.server.run_company_search",
+        lambda _search: SimpleNamespace(
+            model_dump=lambda: {
+                "companies": [company],
+                "limitations": [],
+            }
+        ),
+    )
+
+    first = search_french_companies(naf_codes=["62.01Z"])
+    second = search_french_companies(naf_codes=["62.01Z"])
+
+    assert len(first["leads"]) == 1
+    assert second["leads"] == []
+    assert second["memory"]["already_seen_companies"] == 1
+    assert second["memory"]["excluded_previously_seen"] == 1
+
+
+def test_company_search_can_explicitly_include_a_remembered_company(monkeypatch):
+    """Reviewing previous candidates is an explicit reversible search option."""
+    company = {
+        "name": "Example SAS",
+        "siren": "123456789",
+        "legal_page_url": (
+            "https://annuaire-entreprises.data.gouv.fr/entreprise/123456789"
+        ),
+    }
+    monkeypatch.setattr(
+        "leadgenerator.mcp.server.run_company_search",
+        lambda _search: SimpleNamespace(
+            model_dump=lambda: {"companies": [company], "limitations": []}
+        ),
+    )
+
+    search_french_companies(naf_codes=["62.01Z"])
+    repeated = search_french_companies(
+        naf_codes=["62.01Z"], include_previously_seen=True
+    )
+
+    assert len(repeated["leads"]) == 1
+    assert repeated["memory"]["excluded_previously_seen"] == 0
+
+
 def test_structured_company_search_becomes_text_ready_without_ui(monkeypatch):
     """Text-only search keeps facts and links but cannot trigger an MCP App."""
     monkeypatch.setattr(
-        "lead_studio.mcp.server.load_preferences",
-        lambda: LeadStudioPreferences(interface_mode="text_only"),
+        "leadgenerator.mcp.server.load_preferences",
+        lambda: LeadGeneratorPreferences(interface_mode="text_only"),
     )
     monkeypatch.setattr(
-        "lead_studio.mcp.server.run_company_search",
+        "leadgenerator.mcp.server.run_company_search",
         lambda _search: SimpleNamespace(
             model_dump=lambda: {
                 "companies": [
@@ -170,7 +267,7 @@ def test_structured_company_search_becomes_text_ready_without_ui(monkeypatch):
 def test_structured_company_search_keeps_employee_band_on_visual_card(monkeypatch):
     """The visual card must not lose an employee band returned by the register."""
     monkeypatch.setattr(
-        "lead_studio.mcp.server.run_company_search",
+        "leadgenerator.mcp.server.run_company_search",
         lambda _search: SimpleNamespace(
             model_dump=lambda: {
                 "employee_filter_exact": True,
@@ -194,6 +291,80 @@ def test_structured_company_search_keeps_employee_band_on_visual_card(monkeypatc
     result = search_french_companies(naf_codes=["62.01Z"])
 
     assert result["leads"][0]["employee_band_label"] == "20 à 49 salariés"
+
+
+def test_structured_company_search_labels_a_matching_establishment(monkeypatch):
+    """The explorer must not mislabel a regional branch as the headquarters."""
+    monkeypatch.setattr(
+        "leadgenerator.mcp.server.run_company_search",
+        lambda _search: SimpleNamespace(
+            model_dump=lambda: {
+                "employee_filter_exact": True,
+                "limitations": [],
+                "companies": [
+                    {
+                        "name": "AUTOMOBILE EXEMPLE",
+                        "siren": "123456789",
+                        "naf_code": "45.11Z",
+                        "address": "3 RUE ACTIVE 59000 LILLE",
+                        "latitude": 50.64,
+                        "longitude": 3.07,
+                        "location_label": (
+                            "Établissement correspondant en Hauts-de-France"
+                        ),
+                        "legal_page_url": (
+                            "https://annuaire-entreprises.data.gouv.fr/entreprise/"
+                            "123456789"
+                        ),
+                    }
+                ],
+            }
+        ),
+    )
+
+    result = search_french_companies(naf_codes=["45.11Z"], region="Hauts-de-France")
+    lead = result["leads"][0]
+
+    assert lead["location"]["label"] == "Établissement · 3 RUE ACTIVE 59000 LILLE"
+    assert any(
+        fact["label"] == "Établissement correspondant en Hauts-de-France"
+        for fact in lead["observed_facts"]
+    )
+    assert lead["location_is_headquarters"] is False
+
+
+def test_public_search_continues_when_company_memory_is_unavailable(monkeypatch):
+    """An optional local database outage must not block public sourcing."""
+    monkeypatch.setattr(
+        "leadgenerator.mcp.server.run_company_search",
+        lambda _search: SimpleNamespace(
+            model_dump=lambda: {
+                "employee_filter_exact": True,
+                "limitations": [],
+                "companies": [
+                    {
+                        "name": "AUTOMOBILE EXEMPLE",
+                        "siren": "123456789",
+                        "naf_code": "45.11Z",
+                        "legal_page_url": (
+                            "https://annuaire-entreprises.data.gouv.fr/entreprise/"
+                            "123456789"
+                        ),
+                    }
+                ],
+            }
+        ),
+    )
+    monkeypatch.setattr(
+        "leadgenerator.mcp.server.company_memory.remember",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("offline")),
+    )
+
+    result = search_french_companies(naf_codes=["45.11Z"])
+
+    assert [lead["company_name"] for lead in result["leads"]] == ["AUTOMOBILE EXEMPLE"]
+    assert result["memory"]["available"] is False
+    assert result["memory"]["excluded_previously_seen"] == 0
 
 
 def test_search_and_render_tools_keep_presentation_responsibilities_separate():
@@ -233,13 +404,13 @@ def test_server_advertises_mcp_apps_extension():
 def test_search_result_cannot_be_rendered_as_a_second_explorer(monkeypatch):
     """Only the explicit render tool emits the MCP App discriminator."""
     monkeypatch.setattr(
-        "lead_studio.mcp.server.run_company_search",
+        "leadgenerator.mcp.server.run_company_search",
         lambda _search: SimpleNamespace(
             model_dump=lambda: {"companies": [], "total_results": 0}
         ),
     )
     monkeypatch.setattr(
-        "lead_studio.mcp.server.search_public_companies_by_naf",
+        "leadgenerator.mcp.server.search_public_companies_by_naf",
         lambda *_args, **_kwargs: {
             "kind": "lead_explorer",
             "initial_view": "naf_list",
@@ -295,7 +466,7 @@ def test_server_exposes_profiles_and_confirmed_action_boundaries():
 
 def test_agent_can_read_and_change_interface_mode(monkeypatch, tmp_path):
     """A natural-language agent request maps to one persistent settings tool."""
-    state = LeadStudioPreferences()
+    state = LeadGeneratorPreferences()
     notifications = []
 
     class FakeSession:
@@ -307,11 +478,11 @@ def test_agent_can_read_and_change_interface_mode(monkeypatch, tmp_path):
 
     def fake_set(mode):
         nonlocal state
-        state = LeadStudioPreferences(interface_mode=mode)
+        state = LeadGeneratorPreferences(interface_mode=mode)
         return state, tmp_path / "preferences.json"
 
-    monkeypatch.setattr("lead_studio.mcp.server.load_preferences", lambda: state)
-    monkeypatch.setattr("lead_studio.mcp.server.persist_interface_mode", fake_set)
+    monkeypatch.setattr("leadgenerator.mcp.server.load_preferences", lambda: state)
+    monkeypatch.setattr("leadgenerator.mcp.server.persist_interface_mode", fake_set)
 
     assert get_lead_interface_mode()["interface_mode"] == "chat_ui"
     changed = asyncio.run(
@@ -328,8 +499,8 @@ def test_agent_can_read_and_change_interface_mode(monkeypatch, tmp_path):
 def test_text_only_mode_hides_and_blocks_every_interface_boundary(monkeypatch):
     """Cached calls and direct resource reads cannot bypass a disabled UI."""
     monkeypatch.setattr(
-        "lead_studio.mcp.server.load_preferences",
-        lambda: LeadStudioPreferences(interface_mode="text_only"),
+        "leadgenerator.mcp.server.load_preferences",
+        lambda: LeadGeneratorPreferences(interface_mode="text_only"),
     )
 
     async def inspect_capabilities():
@@ -381,6 +552,8 @@ def test_mcp_server_exposes_interactive_lead_resource():
     assert 'request("ui/initialize"' in explorer.content
     assert 'notify("ui/notifications/initialized"' in explorer.content
     assert "OpenStreetMap" in explorer.content
+    assert "Siège uniquement" in explorer.content
+    assert "location_is_headquarters" in explorer.content
     assert (
         "https://tile.openstreetmap.org"
         in explorer.meta["ui"]["csp"]["resourceDomains"]
@@ -531,7 +704,9 @@ def test_explorer_completes_mcp_apps_handshake_before_receiving_tool_result():
             "ui/initialize",
             "ui/notifications/initialized",
         ]
-        assert app.locator("html").evaluate("node => window.leadStudioMcpApp.connected")
+        assert app.locator("html").evaluate(
+            "node => window.leadGeneratorMcpApp.connected"
+        )
         assert app.locator("html").get_attribute("data-theme") == "dark"
         browser.close()
 
@@ -905,10 +1080,11 @@ def test_render_tool_keeps_map_provenance_in_structured_output():
         ),
     )
 
-    result = render_lead_explorer([lead], naf_code="6201Z")
+    result = render_lead_explorer([lead], naf_code="6201Z", headquarters_only=True)
 
     assert result["kind"] == "lead_explorer"
     assert result["naf_query"]["code"] == "62.01Z"
+    assert result["headquarters_only"] is True
     assert result["leads"][0]["location"]["source_url"].endswith("/contact")
     assert result["leads"][0]["aerial_image_url"].startswith(
         "https://data.geopf.fr/wms-r/wms?"
@@ -1010,7 +1186,7 @@ def test_workspace_renders_the_full_reviewed_lead_journey():
 def test_integration_check_never_starts_paid_or_crm_actions(monkeypatch):
     """Connection diagnostics can be rendered safely during onboarding."""
     monkeypatch.setattr(
-        "lead_studio.mcp.server.read_integration_statuses",
+        "leadgenerator.mcp.server.read_integration_statuses",
         lambda verify: [
             SimpleNamespace(
                 model_dump=lambda **_kwargs: {

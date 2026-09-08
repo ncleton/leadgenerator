@@ -3,12 +3,12 @@
 from pathlib import Path
 
 import pytest
-from lead_studio.profiles.migration import (
+from leadgenerator.profiles.migration import (
     migrate_legacy_offer_skills,
     migrate_offer_profiles_to_objectives,
 )
-from lead_studio.profiles.objectives import ObjectiveStore
-from lead_studio.profiles.offers import (
+from leadgenerator.profiles.objectives import ObjectiveStore
+from leadgenerator.profiles.offers import (
     ResearchSignal,
     build_profile,
     load_profiles,

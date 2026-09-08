@@ -53,8 +53,8 @@ def _leaf_strings(value: Any) -> set[str]:
 
 
 def _load_private_values() -> set[str]:
-    paths = [CODEX_HOME / "lead-studio" / "user-profile.json"]
-    paths.extend((CODEX_HOME / "lead-studio" / "offer-profiles").glob("*.json"))
+    paths = [CODEX_HOME / "leadgenerator" / "user-profile.json"]
+    paths.extend((CODEX_HOME / "leadgenerator" / "offer-profiles").glob("*.json"))
     paths.extend(CODEX_HOME.glob("skills/lead-research-*/references/profile.json"))
     values: set[str] = set()
     for path in paths:

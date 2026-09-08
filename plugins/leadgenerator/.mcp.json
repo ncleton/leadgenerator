@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "leadgenerator": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--project",
+        ".",
+        "--frozen",
+        "leadgenerator-mcp"
+      ],
+      "cwd": "."
+    }
+  }
+}

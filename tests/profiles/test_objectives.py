@@ -8,7 +8,7 @@ import zipfile
 from pathlib import Path
 
 import pytest
-from lead_studio.profiles.objectives import (
+from leadgenerator.profiles.objectives import (
     DocumentProvenance,
     ObjectiveExample,
     ObjectiveStore,
