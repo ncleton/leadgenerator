@@ -11,9 +11,6 @@ All notable changes to Lead Generator are documented here. The project follows
   return a concrete setup example when none exists.
 - Require the actual MCP Apps explorer render in `chat_ui` mode and prohibit
   claims that the interface was displayed when the render tool did not succeed.
-- Avoid treating digit sequences embedded in generated hexadecimal package
-  hashes as French telephone numbers during the publication privacy check.
-
 ## [0.4.0] - 2026-09-08
 
 ### Added

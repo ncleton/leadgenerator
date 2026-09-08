@@ -25,7 +25,7 @@ body:
     id: environment
     attributes:
       label: Environment
-      description: Operating system, Python, uv, Codex, and LeadGenerator versions.
+      description: Operating system, Python, uv, Codex, and Lead Generator versions.
     validations:
       required: true
   - type: checkboxes
