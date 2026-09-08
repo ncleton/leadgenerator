@@ -1,0 +1,20 @@
+{
+  "name": "lead-studio-local",
+  "interface": {
+    "displayName": "Lead Studio Local"
+  },
+  "plugins": [
+    {
+      "name": "lead-studio",
+      "source": {
+        "source": "local",
+        "path": "./plugins/lead-studio"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Sales"
+    }
+  ]
+}

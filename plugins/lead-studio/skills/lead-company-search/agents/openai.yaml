@@ -1,0 +1,12 @@
+interface:
+  display_name: "Recherche d'entreprises"
+  short_description: "Traduire une cible en filtres NAF et data.gouv"
+  default_prompt: "Utilise $lead-company-search pour transformer ma cible en codes NAF, trouver des entreprises françaises et afficher l'explorateur interactif."
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "lead-studio"
+      description: "Outils locaux de recherche et de revue Lead Studio"
+      transport: "stdio"
+policy:
+  allow_implicit_invocation: true

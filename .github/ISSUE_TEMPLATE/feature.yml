@@ -1,0 +1,27 @@
+name: Feature request
+description: Propose an improvement that preserves human review and privacy boundaries.
+title: "feat: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user problem should this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed outcome
+      description: Describe the desired behavior without including client-specific data.
+    validations:
+      required: true
+  - type: textarea
+    id: safeguards
+    attributes:
+      label: Human-review and privacy safeguards
+      description: Explain any impact on enrichment, CRM writes, evidence, or private profiles.
+    validations:
+      required: true

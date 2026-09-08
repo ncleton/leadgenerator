@@ -1,0 +1,12 @@
+interface:
+  display_name: "Découverte de contacts"
+  short_description: "Identifier le bon décideur et son profil public"
+  default_prompt: "Utilise $lead-contact-discovery pour identifier le bon décideur de cette entreprise avec des preuves publiques."
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "lead-studio"
+      description: "Outils locaux de recherche et de revue Lead Studio"
+      transport: "stdio"
+policy:
+  allow_implicit_invocation: true

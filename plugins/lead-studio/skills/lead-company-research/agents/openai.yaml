@@ -1,0 +1,12 @@
+interface:
+  display_name: "Qualification d'entreprise"
+  short_description: "Qualifier un prospect avec des preuves publiques"
+  default_prompt: "Utilise $lead-company-research pour qualifier cette entreprise et relever ses signaux récents."
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "lead-studio"
+      description: "Outils locaux de recherche et de revue Lead Studio"
+      transport: "stdio"
+policy:
+  allow_implicit_invocation: true

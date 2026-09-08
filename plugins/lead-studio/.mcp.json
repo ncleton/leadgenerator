@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "lead-studio": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--project",
+        ".",
+        "--frozen",
+        "lead-studio-mcp"
+      ],
+      "cwd": "."
+    }
+  }
+}

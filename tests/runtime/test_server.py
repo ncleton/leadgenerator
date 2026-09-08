@@ -1,0 +1,1032 @@
+"""Tests for the Lead Studio local MCP tool and UI boundaries."""
+
+import asyncio
+import json
+from types import SimpleNamespace
+
+import pytest
+from lead_studio.mcp.server import (
+    _enforce_allowed_host,
+    _render_lead_explorer_tool,
+    check_lead_integrations,
+    get_lead_interface_mode,
+    inspect_official_visuals,
+    lead_explorer_ui,
+    render_lead_explorer,
+    render_lead_workspace,
+    scrape_public_page,
+    search_companies_by_naf,
+    search_french_companies,
+    server,
+    set_lead_interface_mode,
+)
+from lead_studio.profiles.preferences import LeadStudioPreferences
+from lead_studio.research.visuals import VisualCandidate
+from lead_studio.ui.explorer import (
+    LEAD_EXPLORER_HTML,
+    LEAD_EXPLORER_LEGACY_UI_URIS,
+    LEAD_EXPLORER_UI_URI,
+)
+from lead_studio.ui.models import (
+    HubSpotPreview,
+    IntegrationView,
+    LeadContactView,
+    LeadLocation,
+    LeadPipelineView,
+    LeadViewItem,
+    LeadVisualView,
+)
+from lead_studio.ui.workspace import (
+    LEAD_WORKSPACE_LEGACY_UI_URIS,
+    LEAD_WORKSPACE_UI_URI,
+)
+from mcp.server.mcpserver.exceptions import ResourceError, ToolError
+from mcp.types import CallToolResult
+from playwright.sync_api import sync_playwright
+
+
+@pytest.fixture(autouse=True)
+def default_chat_ui_mode(monkeypatch: pytest.MonkeyPatch):
+    """Keep runtime tests independent from the developer's local preference."""
+    monkeypatch.setattr(
+        "lead_studio.mcp.server.load_preferences",
+        lambda: LeadStudioPreferences(interface_mode="chat_ui"),
+    )
+
+
+def test_mcp_tool_accepts_only_configured_host(monkeypatch: pytest.MonkeyPatch):
+    """The agent cannot redirect its research action to another company."""
+    monkeypatch.setenv("LEAD_STUDIO_ALLOWED_HOST", "www.example.com")
+
+    _enforce_allowed_host("https://example.com/about")
+
+    with pytest.raises(ValueError, match="domaine saisi"):
+        _enforce_allowed_host("https://other.example/about")
+
+
+def test_mcp_tool_allows_public_url_without_process_scope(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    """The packaged server works directly when no nested-agent scope is set."""
+    monkeypatch.delenv("LEAD_STUDIO_ALLOWED_HOST", raising=False)
+
+    _enforce_allowed_host("https://example.com")
+
+    with pytest.raises(ValueError, match="locales ou privées"):
+        _enforce_allowed_host("http://127.0.0.1/private")
+
+
+def test_mcp_tool_uses_user_selected_browser_mode(monkeypatch: pytest.MonkeyPatch):
+    """Visible mode is translated to a headed local Chromium run."""
+    calls = {}
+    monkeypatch.setenv("LEAD_STUDIO_ALLOWED_HOST", "example.com")
+    monkeypatch.setenv("LEAD_STUDIO_BROWSER_MODE", "visible")
+    monkeypatch.setattr(
+        "lead_studio.mcp.server._scrape_page",
+        lambda url, *, headless: calls.update(url=url, headless=headless) or "page",
+    )
+
+    result = scrape_public_page("https://example.com")
+
+    assert result["browser_mode"] == "visible"
+    assert calls == {"url": "https://example.com", "headless": False}
+
+
+def test_visual_tool_keeps_same_company_scope(monkeypatch: pytest.MonkeyPatch):
+    """Visual discovery cannot redirect the agent to another company domain."""
+    monkeypatch.setenv("LEAD_STUDIO_ALLOWED_HOST", "example.com")
+    monkeypatch.setattr(
+        "lead_studio.mcp.server.discover_official_visuals",
+        lambda _url, *, headless: [
+            VisualCandidate(
+                kind="logo",
+                image_url="https://example.com/logo.svg",
+                source_url="https://example.com",
+                evidence="Logo officiel",
+                confidence="high",
+            )
+        ],
+    )
+
+    result = inspect_official_visuals("https://example.com")
+
+    assert result["human_review_required"] is True
+    assert result["candidates"][0]["kind"] == "logo"
+
+
+def test_structured_company_search_returns_public_limitations(monkeypatch):
+    """The broad company tool returns limitations inside the UI contract."""
+    monkeypatch.setattr(
+        "lead_studio.mcp.server.run_company_search",
+        lambda _search: SimpleNamespace(
+            model_dump=lambda: {
+                "employee_filter_exact": False,
+                "limitations": ["Tranche à vérifier"],
+                "companies": [],
+            }
+        ),
+    )
+
+    result = search_french_companies(naf_codes=["62.01Z"], min_employees=300)
+
+    assert result["kind"] == "lead_results"
+    assert result["initial_view"] == "naf_list"
+    assert result["employee_filter_exact"] is False
+    assert result["limitations"]
+
+
+def test_structured_company_search_becomes_text_ready_without_ui(monkeypatch):
+    """Text-only search keeps facts and links but cannot trigger an MCP App."""
+    monkeypatch.setattr(
+        "lead_studio.mcp.server.load_preferences",
+        lambda: LeadStudioPreferences(interface_mode="text_only"),
+    )
+    monkeypatch.setattr(
+        "lead_studio.mcp.server.run_company_search",
+        lambda _search: SimpleNamespace(
+            model_dump=lambda: {
+                "companies": [
+                    {
+                        "name": "Example SAS",
+                        "siren": "123456789",
+                        "legal_page_url": (
+                            "https://annuaire-entreprises.data.gouv.fr/"
+                            "entreprise/123456789"
+                        ),
+                    }
+                ]
+            }
+        ),
+    )
+
+    result = search_french_companies(query="Example")
+
+    assert result["kind"] == "lead_results"
+    assert result["interface_enabled"] is False
+    assert "initial_view" not in result
+    assert result["leads"][0]["legal_profile_url"].endswith("123456789")
+
+
+def test_structured_company_search_keeps_employee_band_on_visual_card(monkeypatch):
+    """The visual card must not lose an employee band returned by the register."""
+    monkeypatch.setattr(
+        "lead_studio.mcp.server.run_company_search",
+        lambda _search: SimpleNamespace(
+            model_dump=lambda: {
+                "employee_filter_exact": True,
+                "limitations": [],
+                "companies": [
+                    {
+                        "name": "EXAMPLE BUILDING",
+                        "siren": "123456789",
+                        "naf_code": "62.01Z",
+                        "employee_band_label": "20 à 49 salariés",
+                        "legal_page_url": (
+                            "https://annuaire-entreprises.data.gouv.fr/entreprise/"
+                            "123456789"
+                        ),
+                    }
+                ],
+            }
+        ),
+    )
+
+    result = search_french_companies(naf_codes=["62.01Z"])
+
+    assert result["leads"][0]["employee_band_label"] == "20 à 49 salariés"
+
+
+def test_search_and_render_tools_keep_presentation_responsibilities_separate():
+    """Search remains usable without UI while dedicated render tools own MCP Apps."""
+
+    async def list_tools():
+        return {tool.name: tool for tool in await server.list_tools()}
+
+    tools = asyncio.run(list_tools())
+
+    assert tools["search_french_companies"].meta is None
+    assert tools["search_companies_by_naf"].meta is None
+    assert (
+        tools["render_lead_explorer"].meta["ui"]["resourceUri"] == LEAD_EXPLORER_UI_URI
+    )
+    assert "ui/resourceUri" not in tools["render_lead_explorer"].meta
+    assert "openai/outputTemplate" not in tools["render_lead_explorer"].meta
+    assert (
+        "prefer search_companies_by_naf" in tools["search_french_companies"].description
+    )
+    assert "either presentation mode" in tools["search_companies_by_naf"].description
+    assert (
+        tools["render_lead_workspace"].meta["ui"]["resourceUri"]
+        == LEAD_WORKSPACE_UI_URI
+    )
+    assert "ui/resourceUri" not in tools["render_lead_workspace"].meta
+    assert "openai/outputTemplate" not in tools["render_lead_workspace"].meta
+
+
+def test_server_advertises_mcp_apps_extension():
+    """Codex must be able to negotiate the MCP Apps rendering channel."""
+    capabilities = server._lowlevel_server.get_capabilities()
+
+    assert capabilities.extensions == {"io.modelcontextprotocol/ui": {}}
+
+
+def test_search_result_cannot_be_rendered_as_a_second_explorer(monkeypatch):
+    """Only the explicit render tool emits the MCP App discriminator."""
+    monkeypatch.setattr(
+        "lead_studio.mcp.server.run_company_search",
+        lambda _search: SimpleNamespace(
+            model_dump=lambda: {"companies": [], "total_results": 0}
+        ),
+    )
+    monkeypatch.setattr(
+        "lead_studio.mcp.server.search_public_companies_by_naf",
+        lambda *_args, **_kwargs: {
+            "kind": "lead_explorer",
+            "initial_view": "naf_list",
+            "leads": [],
+        },
+    )
+
+    search_result = search_french_companies(naf_codes=["68.31Z"])
+    naf_search_result = search_companies_by_naf("68.31Z")
+    render_result = render_lead_explorer([], naf_code="68.31Z")
+
+    assert search_result["kind"] == "lead_results"
+    assert naf_search_result["kind"] == "lead_results"
+    assert render_result["kind"] == "lead_explorer"
+
+
+def test_server_exposes_profiles_and_confirmed_action_boundaries():
+    """The packaged plugin owns profiles, paid lookups, and CRM writes."""
+
+    async def list_tools():
+        return {tool.name: tool for tool in await server.list_tools()}
+
+    tools = asyncio.run(list_tools())
+
+    for name in (
+        "get_lead_user_profile",
+        "save_lead_user_profile",
+        "get_lead_interface_mode",
+        "set_lead_interface_mode",
+        "list_lead_offer_profiles",
+        "save_lead_offer_profile",
+        "list_lead_objectives",
+        "create_lead_objective",
+        "update_lead_objective",
+        "resolve_lead_objective",
+        "select_lead_objective",
+        "attach_lead_objective_document",
+        "add_lead_objective_note",
+        "archive_lead_objective",
+        "migrate_lead_offer_profiles_to_objectives",
+        "plan_contact_enrichment",
+        "create_contact_enrichment_cascade",
+        "confirm_contact_enrichment_fallback",
+        "submit_contact_enrichment",
+        "poll_contact_enrichment",
+        "list_hubspot_owners",
+        "sync_hubspot_contacts",
+    ):
+        assert name in tools
+    assert "confirm_paid_lookup=true" in tools["submit_contact_enrichment"].description
+    assert "confirm_hubspot_write=true" in tools["sync_hubspot_contacts"].description
+
+
+def test_agent_can_read_and_change_interface_mode(monkeypatch, tmp_path):
+    """A natural-language agent request maps to one persistent settings tool."""
+    state = LeadStudioPreferences()
+    notifications = []
+
+    class FakeSession:
+        async def send_tool_list_changed(self):
+            notifications.append("tools")
+
+        async def send_resource_list_changed(self):
+            notifications.append("resources")
+
+    def fake_set(mode):
+        nonlocal state
+        state = LeadStudioPreferences(interface_mode=mode)
+        return state, tmp_path / "preferences.json"
+
+    monkeypatch.setattr("lead_studio.mcp.server.load_preferences", lambda: state)
+    monkeypatch.setattr("lead_studio.mcp.server.persist_interface_mode", fake_set)
+
+    assert get_lead_interface_mode()["interface_mode"] == "chat_ui"
+    changed = asyncio.run(
+        set_lead_interface_mode("text_only", SimpleNamespace(session=FakeSession()))
+    )
+
+    assert changed["interface_enabled"] is False
+    assert changed["presentation"] == "text_and_source_links_only"
+    assert changed["takes_effect_immediately"] is True
+    assert get_lead_interface_mode()["interface_mode"] == "text_only"
+    assert notifications == ["tools", "resources"]
+
+
+def test_text_only_mode_hides_and_blocks_every_interface_boundary(monkeypatch):
+    """Cached calls and direct resource reads cannot bypass a disabled UI."""
+    monkeypatch.setattr(
+        "lead_studio.mcp.server.load_preferences",
+        lambda: LeadStudioPreferences(interface_mode="text_only"),
+    )
+
+    async def inspect_capabilities():
+        return await server.list_tools(), await server.list_resources()
+
+    tools, resources = asyncio.run(inspect_capabilities())
+
+    assert "render_lead_explorer" not in {tool.name for tool in tools}
+    assert "render_lead_workspace" not in {tool.name for tool in tools}
+    assert LEAD_EXPLORER_UI_URI not in {str(resource.uri) for resource in resources}
+    assert LEAD_WORKSPACE_UI_URI not in {str(resource.uri) for resource in resources}
+    assert not set(LEAD_EXPLORER_LEGACY_UI_URIS) & {
+        str(resource.uri) for resource in resources
+    }
+    assert not set(LEAD_WORKSPACE_LEGACY_UI_URIS) & {
+        str(resource.uri) for resource in resources
+    }
+
+    with pytest.raises(ToolError, match="mode interface est désactivé"):
+        render_lead_explorer([])
+    with pytest.raises(ResourceError, match="mode interface est désactivé"):
+        lead_explorer_ui()
+
+
+def test_mcp_server_exposes_interactive_lead_resource():
+    """Both the map and complete workspace are exposed as MCP Apps resources."""
+
+    async def inspect_resource():
+        resources = await server.list_resources()
+        explorer = next(iter(await server.read_resource(LEAD_EXPLORER_UI_URI)))
+        workspace = next(iter(await server.read_resource(LEAD_WORKSPACE_UI_URI)))
+        legacy_explorers = [
+            next(iter(await server.read_resource(uri)))
+            for uri in LEAD_EXPLORER_LEGACY_UI_URIS
+        ]
+        legacy_workspaces = [
+            next(iter(await server.read_resource(uri)))
+            for uri in LEAD_WORKSPACE_LEGACY_UI_URIS
+        ]
+        return resources, explorer, workspace, legacy_explorers, legacy_workspaces
+
+    resources, explorer, workspace, legacy_explorers, legacy_workspaces = asyncio.run(
+        inspect_resource()
+    )
+
+    assert any(str(resource.uri) == LEAD_EXPLORER_UI_URI for resource in resources)
+    assert any(str(resource.uri) == LEAD_WORKSPACE_UI_URI for resource in resources)
+    assert explorer.mime_type == "text/html;profile=mcp-app"
+    assert 'request("ui/initialize"' in explorer.content
+    assert 'notify("ui/notifications/initialized"' in explorer.content
+    assert "OpenStreetMap" in explorer.content
+    assert (
+        "https://tile.openstreetmap.org"
+        in explorer.meta["ui"]["csp"]["resourceDomains"]
+    )
+    assert "https://data.geopf.fr" in explorer.meta["ui"]["csp"]["resourceDomains"]
+    assert "https://*" in explorer.meta["ui"]["csp"]["resourceDomains"]
+    assert workspace.mime_type == "text/html;profile=mcp-app"
+    assert all(resource.content == explorer.content for resource in legacy_explorers)
+    assert all(resource.content == workspace.content for resource in legacy_workspaces)
+    for label in ("Pipeline", "Entreprises", "Contacts", "Visuels", "HubSpot"):
+        assert label in workspace.content
+    assert "sendFollowUpMessage" in workspace.content
+    assert workspace.meta["ui"]["csp"]["connectDomains"] == []
+    assert "https://data.geopf.fr" in workspace.meta["ui"]["csp"]["resourceDomains"]
+    assert "https://*" in workspace.meta["ui"]["csp"]["resourceDomains"]
+
+
+def test_explorer_public_enrichment_controls_and_final_coordinate_actions():
+    """The company journey starts at the top and stops before paid coordinates."""
+    payload = {
+        "kind": "lead_explorer",
+        "initial_view": "map",
+        "leads": [
+            {
+                "id": "example",
+                "company_name": "Example Construction",
+                "siren": "123456789",
+                "company_description": "Entreprise générale de construction.",
+                "logo_url": "https://example.com/logo.png",
+                "representative_image_url": "https://example.com/site.jpg",
+                "aerial_image_url": "https://data.geopf.fr/wms-r/wms?REQUEST=GetMap",
+                "aerial_source_url": "https://geoservices.ign.fr/services-web-experts-ortho",
+                "aerial_focus": {
+                    "label": "Parking du siège",
+                    "latitude": 50.6292,
+                    "longitude": 3.0573,
+                    "precision": "published_coordinates",
+                    "source_url": "https://example.com/contact",
+                },
+                "location": {
+                    "label": "Lille",
+                    "latitude": 50.6292,
+                    "longitude": 3.0573,
+                    "precision": "official_address_coordinates",
+                    "source_url": "https://example.com/legal",
+                },
+                "news_summary": "Un nouveau site augmente la capacité régionale.",
+                "outreach_angle": "Proposer un atelier IA aux équipes du nouveau site.",
+                "outreach_angle_source_urls": ["https://example.com/news"],
+                "public_profiles_discovered": 18,
+                "public_profiles_reviewed": 18,
+                "contacts": [
+                    {
+                        "name": "Camille Martin",
+                        "role": "Direction des opérations",
+                        "rank": 1,
+                        "evidence": "Nom, poste et société corroborés.",
+                        "source_url": "https://example.com/equipe",
+                        "identity_status": "verified",
+                        "public_profile_status": "complete",
+                        "added_to_contacts": True,
+                    }
+                ],
+            }
+        ],
+    }
+
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=True)
+        page = browser.new_page(viewport={"width": 1100, "height": 850})
+        page.evaluate(
+            """payload => { window.openai = {
+              toolOutput: payload,
+              sendFollowUpMessage: message => { window.__followUp = message; },
+            }; }""",
+            payload,
+        )
+        page.set_content(LEAD_EXPLORER_HTML, wait_until="domcontentloaded")
+        page.locator("#map .marker").click()
+
+        drawer = page.locator("#drawer")
+        top_buttons = drawer.locator(".top-actions .button")
+        assert top_buttons.nth(0).inner_text() == "Ajouter à la sélection"
+        assert top_buttons.nth(1).inner_text() == "Enrichir"
+        assert drawer.get_by_text("Vue du ciel · parking et emprise").is_visible()
+        assert drawer.get_by_text("18/18 profils publics examinés").is_visible()
+        assert drawer.get_by_text("Premier angle de prospection").is_visible()
+        assert drawer.get_by_role("button", name="Trouver l’email").is_visible()
+        assert drawer.get_by_role("button", name="Trouver le numéro").is_visible()
+        assert drawer.get_by_role("button", name="Enrichir le profil").count() == 0
+        assert drawer.get_by_role("button", name="Ajouter comme contact").count() == 0
+
+        top_buttons.nth(1).click()
+        prompt = page.evaluate("window.__followUp.prompt")
+        assert "parcours d'enrichissement public complet" in prompt
+        assert "cinq meilleurs contacts" in prompt
+        assert "Ne lance aucune recherche payante" in prompt
+        browser.close()
+
+
+def test_explorer_completes_mcp_apps_handshake_before_receiving_tool_result():
+    """A strict MCP Apps host initializes the view before sending lead data."""
+    payload = {
+        "kind": "lead_explorer",
+        "initial_view": "naf_list",
+        "leads": [{"id": "example", "company_name": "Example Construction"}],
+    }
+
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=True)
+        page = browser.new_page(viewport={"width": 900, "height": 720})
+        page.set_content('<iframe id="mcp-app"></iframe>')
+        page.evaluate(
+            """({html, payload}) => {
+              window.__mcpAppMethods = [];
+              window.addEventListener("message", event => {
+                const message = event.data;
+                if(message?.method === "ui/initialize") {
+                  window.__mcpAppMethods.push(message.method);
+                  event.source.postMessage({
+                    jsonrpc: "2.0",
+                    id: message.id,
+                    result: {
+                      protocolVersion: "2026-01-26",
+                      hostInfo: {name: "test-host", version: "1.0.0"},
+                      hostCapabilities: {message: {}},
+                      hostContext: {theme: "dark", displayMode: "inline"},
+                    },
+                  }, "*");
+                }
+                if(message?.method === "ui/notifications/initialized") {
+                  window.__mcpAppMethods.push(message.method);
+                  event.source.postMessage({
+                    jsonrpc: "2.0",
+                    method: "ui/notifications/tool-result",
+                    params: {structuredContent: payload},
+                  }, "*");
+                }
+              });
+              document.querySelector("#mcp-app").srcdoc = html;
+            }""",
+            {"html": LEAD_EXPLORER_HTML, "payload": json.loads(json.dumps(payload))},
+        )
+        app = page.frame_locator("#mcp-app")
+        app.get_by_text("Example Construction").wait_for(state="visible")
+
+        assert page.evaluate("window.__mcpAppMethods") == [
+            "ui/initialize",
+            "ui/notifications/initialized",
+        ]
+        assert app.locator("html").evaluate("node => window.leadStudioMcpApp.connected")
+        assert app.locator("html").get_attribute("data-theme") == "dark"
+        browser.close()
+
+
+def test_explorer_shows_progress_before_payload_and_while_map_tiles_load():
+    """Slow searches and map tiles keep an explicit loading state visible."""
+    payload = {
+        "kind": "lead_explorer",
+        "initial_view": "map",
+        "leads": [
+            {
+                "id": "example",
+                "company_name": "Example",
+                "location": {"latitude": 50.63, "longitude": 3.06},
+            }
+        ],
+    }
+
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=True)
+        page = browser.new_page(viewport={"width": 900, "height": 720})
+        page.set_content(LEAD_EXPLORER_HTML, wait_until="domcontentloaded")
+
+        assert (
+            page.get_by_role("status")
+            .get_by_text("Chargement de Lead Studio…")
+            .is_visible()
+        )
+
+        map_loading = page.evaluate(
+            """payload => {
+              window.dispatchEvent(new CustomEvent("openai:set_globals", {
+                detail: {globals: {toolOutput: payload}}
+              }));
+              const loading = document.querySelector(".map-loading");
+              return loading ? loading.textContent : null;
+            }""",
+            json.loads(json.dumps(payload)),
+        )
+
+        assert map_loading == "Chargement de la carte…"
+        browser.close()
+
+
+def test_explorer_hydrates_one_mcp_result_without_remounting():
+    """One host notification must create one app view, not duplicate or remount it."""
+    payload = {
+        "kind": "lead_explorer",
+        "initial_view": "map",
+        "leads": [{"id": "example", "company_name": "Example"}],
+    }
+
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=True)
+        page = browser.new_page(viewport={"width": 900, "height": 720})
+        page.set_content(LEAD_EXPLORER_HTML, wait_until="domcontentloaded")
+        page.evaluate(
+            """payload => {
+              const app = document.querySelector("#app");
+              window.__appReplacements = 0;
+              new MutationObserver(records => {
+                window.__appReplacements += records.filter(
+                  record => record.target === app
+                ).length;
+              }).observe(app, {childList: true});
+              window.postMessage({
+                jsonrpc: "2.0",
+                method: "ui/notifications/tool-result",
+                params: {structuredContent: payload},
+              }, "*");
+            }""",
+            json.loads(json.dumps(payload)),
+        )
+
+        page.get_by_text("Carte des leads").wait_for(state="visible")
+        page.evaluate(
+            """payload => window.postMessage({
+              jsonrpc: "2.0",
+              method: "ui/notifications/tool-result",
+              params: {structuredContent: payload},
+            }, "*")""",
+            json.loads(json.dumps(payload)),
+        )
+        page.wait_for_timeout(20)
+
+        assert page.evaluate("window.__appReplacements") == 1
+        assert page.locator("#app > .topbar").count() == 1
+        browser.close()
+
+
+def test_explorer_offers_a_street_level_openstreetmap_view():
+    """The detailed map opens on a lead with street-level OSM tiles."""
+    payload = {
+        "kind": "lead_explorer",
+        "initial_view": "map",
+        "leads": [
+            {
+                "id": "lille-example",
+                "company_name": "Lille Example",
+                "location": {"latitude": 50.6292, "longitude": 3.0573},
+            }
+        ],
+    }
+
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=True)
+        page = browser.new_page(viewport={"width": 900, "height": 820})
+        page.set_content(LEAD_EXPLORER_HTML, wait_until="domcontentloaded")
+        page.evaluate(
+            """payload => window.dispatchEvent(new CustomEvent("openai:set_globals", {
+              detail: {globals: {toolOutput: payload}}
+            }))""",
+            json.loads(json.dumps(payload)),
+        )
+
+        page.get_by_role("button", name="Carte détaillée").click()
+
+        assert page.get_by_label(
+            "Carte OpenStreetMap détaillée jusqu’aux rues"
+        ).is_visible()
+        assert page.get_by_text("Vue rues · OpenStreetMap").is_visible()
+        tile_url = page.locator("#street-map .tile").first.get_attribute("src")
+        assert tile_url is not None
+        assert "/16/" in tile_url
+
+        page.get_by_role("button", name="Zoom avant sur la carte détaillée").click()
+        zoomed_tile_url = page.locator("#street-map .tile").first.get_attribute("src")
+        assert zoomed_tile_url is not None
+        assert "/17/" in zoomed_tile_url
+        browser.close()
+
+
+def test_explorer_requests_host_fullscreen_and_uses_the_full_viewport():
+    """The map uses the host display API and becomes the only fullscreen surface."""
+    payload = {
+        "kind": "lead_explorer",
+        "initial_view": "map",
+        "leads": [
+            {
+                "id": "lille-example",
+                "company_name": "Lille Example",
+                "location": {"latitude": 50.6292, "longitude": 3.0573},
+            }
+        ],
+    }
+
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=True)
+        page = browser.new_page(viewport={"width": 900, "height": 720})
+        page.evaluate(
+            """payload => {
+              window.openai = {
+                toolOutput: payload,
+                requestDisplayMode: async request => {
+                  window.__displayRequest = request;
+                  return request;
+                },
+              };
+            }""",
+            json.loads(json.dumps(payload)),
+        )
+        page.set_content(LEAD_EXPLORER_HTML, wait_until="domcontentloaded")
+
+        page.get_by_role(
+            "button", name="Afficher la carte en plein écran"
+        ).first.click()
+
+        assert page.evaluate("window.__displayRequest.mode") == "fullscreen"
+        assert (
+            page.evaluate("document.documentElement.dataset.displayMode")
+            == "fullscreen"
+        )
+        assert not page.locator(".topbar").is_visible()
+        assert page.locator("#map-view").bounding_box()["height"] == pytest.approx(
+            720, abs=1
+        )
+
+        page.get_by_role("button", name="Quitter le plein écran").first.click()
+        assert page.evaluate("window.__displayRequest.mode") == "inline"
+        assert page.locator(".topbar").is_visible()
+        browser.close()
+
+
+def test_explorer_detects_and_displays_location_without_persisting_it():
+    """Geolocation is requested by a click and remains ephemeral widget state."""
+    payload = {
+        "kind": "lead_explorer",
+        "initial_view": "map",
+        "leads": [
+            {
+                "id": "lille-example",
+                "company_name": "Lille Example",
+                "location": {"latitude": 50.6292, "longitude": 3.0573},
+            }
+        ],
+    }
+
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=True)
+        page = browser.new_page(viewport={"width": 900, "height": 720})
+        page.evaluate(
+            """payload => {
+              Object.defineProperty(navigator, "geolocation", {
+                configurable: true,
+                value: {
+                  getCurrentPosition: success => success({
+                    coords: {latitude: 50.6372, longitude: 3.0634, accuracy: 24.6}
+                  }),
+                },
+              });
+              window.openai = {
+                toolOutput: payload,
+                setWidgetState: state => { window.__widgetState = state; },
+              };
+            }""",
+            json.loads(json.dumps(payload)),
+        )
+        page.set_content(LEAD_EXPLORER_HTML, wait_until="domcontentloaded")
+
+        page.locator("#map-view").get_by_role(
+            "button", name="Détecter ma position"
+        ).click()
+
+        assert page.get_by_role(
+            "img", name="Votre position, précision 25 mètres"
+        ).is_visible()
+        assert page.get_by_text(
+            "Votre position est affichée · précision 25 m. "
+            "Elle reste uniquement dans cette carte."
+        ).is_visible()
+        assert page.evaluate("window.__widgetState") is None
+        browser.close()
+
+
+def test_explorer_explains_when_location_permission_is_denied():
+    """A denied browser permission produces actionable, non-technical feedback."""
+    payload = {"kind": "lead_explorer", "initial_view": "map", "leads": []}
+
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=True)
+        page = browser.new_page(viewport={"width": 900, "height": 720})
+        page.evaluate(
+            """payload => {
+              Object.defineProperty(navigator, "geolocation", {
+                configurable: true,
+                value: {
+                  getCurrentPosition: (_success, error) => error({code: 1}),
+                },
+              });
+              window.openai = {toolOutput: payload};
+            }""",
+            json.loads(json.dumps(payload)),
+        )
+        page.set_content(LEAD_EXPLORER_HTML, wait_until="domcontentloaded")
+
+        page.locator("#map-view").get_by_role(
+            "button", name="Détecter ma position"
+        ).click()
+
+        feedback = page.locator("#map-feedback")
+        assert feedback.get_by_text("Localisation refusée.").is_visible()
+        assert "error" in (feedback.get_attribute("class") or "")
+        browser.close()
+
+
+def test_explorer_aggregates_trackpad_input_and_keeps_the_pointer_anchor():
+    """Trackpad micro-events produce one anchored zoom instead of a render cascade."""
+    payload = {
+        "kind": "lead_explorer",
+        "initial_view": "map",
+        "leads": [
+            {
+                "id": "lille-example",
+                "company_name": "Lille Example",
+                "location": {"latitude": 50.6292, "longitude": 3.0573},
+            },
+            {
+                "id": "marseille-example",
+                "company_name": "Marseille Example",
+                "location": {"latitude": 43.2965, "longitude": 5.3698},
+            },
+        ],
+    }
+
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch(headless=True)
+        page = browser.new_page(viewport={"width": 900, "height": 720})
+        page.set_content(LEAD_EXPLORER_HTML, wait_until="domcontentloaded")
+        page.evaluate(
+            """payload => window.dispatchEvent(new CustomEvent("openai:set_globals", {
+              detail: {globals: {toolOutput: payload}}
+            }))""",
+            json.loads(json.dumps(payload)),
+        )
+
+        initial = page.evaluate("""() => {
+              const map = document.querySelector("#map").getBoundingClientRect();
+              const marker = document.querySelector("#map .marker");
+              const markerX = Number.parseFloat(marker.style.left);
+              const markerY = Number.parseFloat(marker.style.top);
+              const tile = document.querySelector("#map .tile");
+              return {
+                x: map.left + markerX,
+                y: map.top + markerY,
+                markerX,
+                markerY,
+                zoom: Number(new URL(tile.src).pathname.split("/")[1]),
+              };
+            }""")
+        page.evaluate(
+            """({x, y}) => {
+              const map = document.querySelector("#map");
+              for (let index = 0; index < 5; index += 1) {
+                map.dispatchEvent(new WheelEvent("wheel", {
+                  deltaY: -10, deltaMode: 0, clientX: x, clientY: y,
+                  bubbles: true, cancelable: true,
+                }));
+              }
+            }""",
+            initial,
+        )
+        page.wait_for_timeout(50)
+        assert (
+            page.evaluate(
+                "Number(new URL(document.querySelector('#map .tile').src).pathname.split('/')[1])"
+            )
+            == initial["zoom"]
+        )
+
+        page.evaluate(
+            """({x, y}) => {
+              const map = document.querySelector("#map");
+              for (let index = 0; index < 7; index += 1) {
+                map.dispatchEvent(new WheelEvent("wheel", {
+                  deltaY: -10, deltaMode: 0, clientX: x, clientY: y,
+                  bubbles: true, cancelable: true,
+                }));
+              }
+            }""",
+            initial,
+        )
+        page.wait_for_timeout(50)
+
+        zoomed = page.evaluate("""() => {
+              const marker = document.querySelector("#map .marker");
+              const tile = document.querySelector("#map .tile");
+              return {
+                markerX: Number.parseFloat(marker.style.left),
+                markerY: Number.parseFloat(marker.style.top),
+                zoom: Number(new URL(tile.src).pathname.split("/")[1]),
+              };
+            }""")
+        assert zoomed["zoom"] == initial["zoom"] + 1
+        assert zoomed["markerX"] == pytest.approx(initial["markerX"], abs=1)
+        assert zoomed["markerY"] == pytest.approx(initial["markerY"], abs=1)
+        browser.close()
+
+
+def test_render_tool_keeps_map_provenance_in_structured_output():
+    """A rendered marker carries its public location source."""
+    lead = LeadViewItem(
+        id="example",
+        company_name="Example",
+        website_url="https://example.com",
+        location=LeadLocation(
+            label="Nantes",
+            latitude=47.2184,
+            longitude=-1.5536,
+            precision="published_coordinates",
+            source_url="https://example.com/contact",
+        ),
+    )
+
+    result = render_lead_explorer([lead], naf_code="6201Z")
+
+    assert result["kind"] == "lead_explorer"
+    assert result["naf_query"]["code"] == "62.01Z"
+    assert result["leads"][0]["location"]["source_url"].endswith("/contact")
+    assert result["leads"][0]["aerial_image_url"].startswith(
+        "https://data.geopf.fr/wms-r/wms?"
+    )
+    assert result["leads"][0]["aerial_focus"]["label"] == "Nantes"
+    assert result["safety"]["outreach_sent"] is False
+
+
+def test_render_payload_omits_empty_defaults_to_keep_the_app_fast():
+    """Optional empty fields must not inflate every lead sent to the MCP App."""
+    lead = LeadViewItem(id="example", company_name="Example")
+
+    result = render_lead_explorer([lead])
+
+    assert result["leads"] == [{"id": "example", "company_name": "Example"}]
+
+
+def test_registered_render_tool_does_not_duplicate_payload_in_text_content():
+    """The model-facing text stays small while the app receives structured data."""
+    lead = LeadViewItem(id="example", company_name="Example")
+
+    result = _render_lead_explorer_tool([lead])
+
+    assert isinstance(result, CallToolResult)
+    assert result.content[0].text == "Lead Studio prêt : 1 entreprise à parcourir."
+    assert result.structured_content["leads"] == [
+        {"id": "example", "company_name": "Example"}
+    ]
+    assert "company_name" not in result.content[0].text
+
+
+def test_workspace_renders_the_full_reviewed_lead_journey():
+    """The new render contract covers evidence, contacts, visuals, and CRM review."""
+    lead = LeadViewItem(
+        id="example",
+        company_name="Example",
+        siren="123456789",
+        website_url="https://example.com",
+        employee_band_label="300 à 499 salariés",
+        contacts=[
+            LeadContactView(
+                name="Camille Martin",
+                role="Direction commerciale",
+                linkedin_url="https://www.linkedin.com/in/camille-martin",
+                work_email="camille@example.com",
+                evidence="La page équipe relie le nom, le poste et l'entreprise.",
+                source_url="https://example.com/equipe",
+                enrichment_provider="fullenrich",
+                enrichment_status="found",
+            )
+        ],
+        visuals=[
+            LeadVisualView(
+                kind="logo",
+                image_url="https://example.com/logo.svg",
+                source_url="https://example.com",
+                evidence="Logo déclaré par le site officiel.",
+                confidence="high",
+            )
+        ],
+        pipeline=LeadPipelineView(
+            company_research="complete",
+            contact_discovery="complete",
+            contact_enrichment="review",
+            crm_sync="ready",
+        ),
+    )
+    result = render_lead_workspace(
+        [lead],
+        initial_view="hubspot",
+        search_summary="Entreprises de 300 salariés minimum",
+        search_filters={"min_employees": 300},
+        integrations=[
+            IntegrationView(
+                service="fullenrich",
+                status="connected",
+                purpose="Coordonnées professionnelles",
+                recommendation="Service recommandé si un seul est choisi.",
+            )
+        ],
+        hubspot=HubSpotPreview(
+            list_name="Prospects prioritaires",
+            owner_email="sales@example.com",
+            ready_contact_count=1,
+            status="ready_for_confirmation",
+        ),
+    )
+
+    assert result["kind"] == "lead_workspace"
+    assert result["schema_version"] == "4.0"
+    assert result["initial_view"] == "hubspot"
+    assert result["leads"][0]["contacts"][0]["enrichment_provider"] == "fullenrich"
+    assert result["leads"][0]["visuals"][0]["kind"] == "logo"
+    assert result["hubspot"]["owner_email"] == "sales@example.com"
+    assert result["safety"]["paid_lookup_confirmed"] is False
+    assert result["safety"]["crm_write_confirmed"] is False
+
+
+def test_integration_check_never_starts_paid_or_crm_actions(monkeypatch):
+    """Connection diagnostics can be rendered safely during onboarding."""
+    monkeypatch.setattr(
+        "lead_studio.mcp.server.read_integration_statuses",
+        lambda verify: [
+            SimpleNamespace(
+                model_dump=lambda **_kwargs: {
+                    "service": "enrow",
+                    "status": "not_configured",
+                    "required_env_var": "ENROW_API_KEY",
+                    "purpose": "Emails professionnels moins chers",
+                    "recommendation": "Optionnel",
+                    "detail": "Clé absente",
+                }
+            )
+        ],
+    )
+
+    result = check_lead_integrations(verify=False)
+
+    assert result["integrations"][0]["required_env_var"] == "ENROW_API_KEY"
+    assert result["paid_lookup_started"] is False
+    assert result["crm_write_started"] is False

@@ -1,0 +1,96 @@
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+
+# Python environments and generated files
+.venv/
+venv/
+**/__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Tests and quality tools
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Lead Studio local state and exports
+outputs/
+*.sqlite
+*.google-cookie
+
+# Private Lead Studio user and client data
+**/user-profile.json
+**/offer-profiles/
+**/client-data/
+**/client-profiles/
+**/lead-research-*/
+
+# Editors and operating systems
+.DS_Store
+._*
+.idea/
+.vscode/
+*.swp
+
+# BEGIN AGENTCREATOR PROTECTED
+# Private runtime and identity
+.agent-private
+.agent-private/
+.agent-local/
+.secrets/
+
+# Credentials and local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*credentials*
+*secret*
+*token*
+
+# User and company data
+private/
+prive/
+data/
+donnees/
+clients/
+customers/
+factures/
+invoices/
+documents/
+uploads/
+exports/
+logs/
+backups/
+memory/
+memoire/
+*.sqlite
+*.sqlite3
+*.db
+*.pdf
+*.doc
+*.docx
+*.xls
+*.xlsx
+*.csv
+*.tsv
+
+# Local noise
+.DS_Store
+Thumbs.db
+__pycache__/
+*.py[cod]
+.pytest_cache/
+node_modules/
+# END AGENTCREATOR PROTECTED
