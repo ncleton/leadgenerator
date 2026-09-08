@@ -37,14 +37,11 @@
 Lead Generator, par **Yaka Performance**, est un plugin Codex de recherche commerciale B2B avec validation
 humaine. Il transforme une cible en recherche d'entreprises françaises, rassemble
 des preuves publiques et identifie des décideurs. Chaque objectif possède son
-agent persistant, ses consignes, exemples, rôles cibles et documents privés. Le
-routeur conserve l'objectif de la conversation et demande une clarification
-lorsque plusieurs objectifs sont plausibles. Chaque installation choisit
-entre une interface contextuelle dans le chat et un mode minimal avec uniquement
-du texte et des liens. L'enrichissement payant et l'écriture HubSpot restent
-bloqués jusqu'à une confirmation explicite. Une mémoire PostgreSQL locale conserve
-les fiches structurées, leur historique immuable et les entreprises déjà examinées,
-sans publier les données commerciales dans Git.
+agent persistant, ses consignes, exemples, rôles cibles et documents privés.
+Lead Generator garde le bon objectif et demande lequel utiliser en cas
+d'ambiguïté. Il fonctionne avec une interface visuelle ou en mode texte. Toute
+recherche payante ou écriture HubSpot nécessite votre accord. Les entreprises
+déjà étudiées sont mémorisées localement dans PostgreSQL, jamais dans Git.
 
 ## Enrichissement des contacts avec Enrow et FullEnrich
 
