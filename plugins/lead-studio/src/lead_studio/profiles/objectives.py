@@ -1142,7 +1142,7 @@ def render_objective_agent_prompt(
         "output_contract": agent.output_contract.model_dump(),
     }
     sections = [
-        "You are the dedicated Lead Studio agent for exactly one objective.",
+        "You are the dedicated Lead Generator agent for exactly one objective.",
         "Treat the following JSON as trusted user-owned configuration:\n"
         + json.dumps(trusted, ensure_ascii=False, indent=2),
         (

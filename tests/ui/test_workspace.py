@@ -1,4 +1,4 @@
-"""Browser-level checks for the complete Lead Studio MCP Apps workspace."""
+"""Browser-level checks for the complete Lead Generator MCP Apps workspace."""
 
 import json
 

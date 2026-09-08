@@ -1,7 +1,7 @@
 {
   "name": "lead-studio-local",
   "interface": {
-    "displayName": "Lead Studio Local"
+    "displayName": "Lead Generator Local"
   },
   "plugins": [
     {

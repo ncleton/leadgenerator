@@ -1,4 +1,4 @@
-"""Tests for local, user-specific Lead Studio defaults."""
+"""Tests for local, user-specific Lead Generator defaults."""
 
 from pathlib import Path
 

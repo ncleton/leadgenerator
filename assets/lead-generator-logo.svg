@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">Lead Generator</title>
+  <desc id="desc">A magnifying glass scanning company buildings with a human-review check mark.</desc>
+  <g fill="none" stroke="#0B6B58" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="112" cy="108" r="76" stroke-width="18"/>
+    <path d="M168 164l54 54" stroke-width="22"/>
+    <path d="M62 80a62 62 0 0 1 96-18" stroke="#75D7BC" stroke-width="10"/>
+  </g>
+  <g fill="#0B6B58">
+    <path d="M65 115l28-17v68H65z"/>
+    <path d="M101 78l34-21v109h-34z"/>
+    <path d="M143 105l27 16v45h-27z"/>
+  </g>
+  <circle cx="162" cy="166" r="38" fill="#75D7BC"/>
+  <path d="M144 166l12 12 25-28" fill="none" stroke="#F5F2E9" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

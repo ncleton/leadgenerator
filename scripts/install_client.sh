@@ -9,7 +9,7 @@ if ! command -v uv >/dev/null 2>&1; then
     exit 1
 fi
 
-echo "Installation de Lead Studio dans $ROOT_DIR"
+echo "Installation de Lead Generator dans $ROOT_DIR"
 uv sync --project plugins/lead-studio --frozen
 uv run --project plugins/lead-studio lead-studio-migrate-profiles
 
@@ -48,7 +48,7 @@ if [[ -d "$CACHE_ROOT" ]]; then
     done < <(find "$CACHE_ROOT" -mindepth 1 -maxdepth 1 \( -type d -o -type l \) -print)
 fi
 
-# Older installers copied the generic Lead Studio skills directly into
+# Older installers copied the generic Lead Generator skills directly into
 # ~/.codex/skills. Those copies shadow the plugin-owned skills and can keep stale
 # instructions alive after an upgrade. Archive only the generic duplicates; keep
 # offer-specific skills and the local user profile untouched.
@@ -129,7 +129,7 @@ restore_plugin_venv
 trap - EXIT
 
 echo
-echo "Installation terminee. Le plugin Lead Studio et ses skills sont installes."
+echo "Installation terminee. Le plugin Lead Generator et ses skills sont installes."
 echo "Ouvre une nouvelle conversation Codex, puis demande :"
-echo "  Trouve-moi des prospects et affiche le parcours visuel Lead Studio."
+echo "  Trouve-moi des prospects et affiche le parcours visuel Lead Generator."
 echo "  Ou : montre-moi 20 entreprises du code NAF 62.01Z."

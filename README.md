@@ -1,6 +1,35 @@
-# Lead Studio
+<div align="center">
+  <img src="assets/lead-generator-logo.svg" alt="Logo Lead Generator" width="220">
+  <h1>Lead Generator</h1>
+  <p><strong>Recherche B2B sourcée, qualification humaine et enrichissement sous contrôle.</strong></p>
 
-Lead Studio est un plugin Codex de recherche commerciale B2B avec validation
+  <p>
+    <a href="https://github.com/ncleton/leadgenerator/actions/workflows/ci.yml"><img src="https://github.com/ncleton/leadgenerator/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI status"></a>
+    <a href="https://github.com/ncleton/leadgenerator/actions/workflows/privacy.yml"><img src="https://github.com/ncleton/leadgenerator/actions/workflows/privacy.yml/badge.svg?branch=main" alt="Privacy gate status"></a>
+    <a href="https://github.com/ncleton/leadgenerator/releases/tag/v0.3.1"><img src="https://img.shields.io/badge/release-v0.3.1-0B6B58?style=flat-square&logo=github" alt="Release v0.3.1"></a>
+    <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-142927?style=flat-square" alt="Licence MIT"></a>
+  </p>
+
+  <p>
+    <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.13-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.13"></a>
+    <a href="https://docs.astral.sh/uv/"><img src="https://img.shields.io/badge/uv-locked-DE5FE9?style=for-the-badge&logo=uv&logoColor=white" alt="uv"></a>
+    <a href="https://developers.openai.com/codex/"><img src="https://img.shields.io/badge/Codex-ready-000000?style=for-the-badge&logo=openai&logoColor=white" alt="Codex"></a>
+    <a href="https://modelcontextprotocol.io/"><img src="https://img.shields.io/badge/MCP-2.x-142927?style=for-the-badge&logo=modelcontextprotocol&logoColor=white" alt="Model Context Protocol"></a>
+  </p>
+  <p>
+    <a href="https://playwright.dev/python/"><img src="https://img.shields.io/badge/Playwright-1.57+-2EAD33?style=flat-square&logo=playwright&logoColor=white" alt="Playwright"></a>
+    <a href="https://docs.pydantic.dev/"><img src="https://img.shields.io/badge/Pydantic-2.12+-E92063?style=flat-square&logo=pydantic&logoColor=white" alt="Pydantic"></a>
+    <a href="https://www.crummy.com/software/BeautifulSoup/"><img src="https://img.shields.io/badge/Beautiful_Soup-4.14+-0B6B58?style=flat-square&logo=python&logoColor=white" alt="Beautiful Soup"></a>
+    <a href="https://github.com/Alir3z4/html2text"><img src="https://img.shields.io/badge/html2text-2025+-555555?style=flat-square&logo=markdown&logoColor=white" alt="html2text"></a>
+    <a href="https://pypdf.readthedocs.io/"><img src="https://img.shields.io/badge/pypdf-6.x-EC1C24?style=flat-square&logo=adobeacrobatreader&logoColor=white" alt="pypdf"></a>
+    <a href="https://docs.pytest.org/"><img src="https://img.shields.io/badge/pytest-126_tests-0A9EDC?style=flat-square&logo=pytest&logoColor=white" alt="pytest"></a>
+    <a href="https://docs.astral.sh/ruff/"><img src="https://img.shields.io/badge/Ruff-checked-D7FF64?style=flat-square&logo=ruff&logoColor=111111" alt="Ruff"></a>
+    <a href="https://black.readthedocs.io/"><img src="https://img.shields.io/badge/Black-formatted-000000?style=flat-square&logo=python&logoColor=white" alt="Black"></a>
+    <a href="https://developers.hubspot.com/"><img src="https://img.shields.io/badge/HubSpot-confirmed_writes-FF7A59?style=flat-square&logo=hubspot&logoColor=white" alt="HubSpot"></a>
+  </p>
+</div>
+
+Lead Generator, par **Yaka Performance**, est un plugin Codex de recherche commerciale B2B avec validation
 humaine. Il transforme une cible en recherche d'entreprises françaises, rassemble
 des preuves publiques et identifie des décideurs. Chaque objectif possède son
 agent persistant, ses consignes, exemples, rôles cibles et documents privés. Le
@@ -52,7 +81,7 @@ Set-Location leadgenerator
 ```
 
 Ouvrir ensuite une nouvelle tâche Codex et demander : « Trouve-moi des prospects
-et affiche le parcours Lead Studio. »
+et affiche le parcours Lead Generator. »
 
 Les objectifs sont conservés dans `~/.codex/lead-studio/objectives/`. Les anciens
 profils d'offre peuvent être migrés sans suppression avec la commande
@@ -62,7 +91,7 @@ copiés, hachés et traités comme des preuves non fiables.
 
 Le mode interface est activé par défaut pour conserver l'expérience existante.
 Il se change directement dans la conversation, par exemple : « Désactive les
-interfaces Lead Studio » ou « Réactive le mode interface ». Le choix est conservé
+interfaces Lead Generator » ou « Réactive le mode interface ». Le choix est conservé
 localement dans `~/.codex/lead-studio/preferences.json`. En mode texte, les
 ressources d'interface sont inaccessibles et les résultats gardent leurs liens
 sources.

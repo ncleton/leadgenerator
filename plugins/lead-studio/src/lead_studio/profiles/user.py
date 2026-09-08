@@ -1,4 +1,4 @@
-"""Local, user-specific defaults for the shareable Lead Studio agent."""
+"""Local, user-specific defaults for the shareable Lead Generator agent."""
 
 from __future__ import annotations
 

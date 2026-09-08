@@ -1,9 +1,9 @@
 ---
 name: lead-studio
-description: Orchestrate objective-scoped, human-reviewed B2B lead work from company sourcing through public research, optional enrichment, and confirmed HubSpot synchronization. Use for leads, prospects, objective agents, qualification, enrichment, CRM export, attached research context, or Lead Studio interface settings.
+description: Orchestrate objective-scoped, human-reviewed B2B lead work from company sourcing through public research, optional enrichment, and confirmed HubSpot synchronization. Use for leads, prospects, objective agents, qualification, enrichment, CRM export, attached research context, or Lead Generator interface settings.
 ---
 
-# Lead Studio
+# Lead Generator
 
 Run the complete experience in the current conversation. Every lead operation is
 owned by a persistent objective agent when an objective applies. Keep observed
@@ -28,7 +28,7 @@ facts, evidence, hypotheses, and missing information as readable text with links
 
 Apply this section only in `chat_ui` mode. For every request to find, source,
 list, show, map, or compare multiple companies,
-the result is incomplete until a Lead Studio MCP tool has rendered the interactive
+the result is incomplete until a Lead Generator MCP tool has rendered the interactive
 lead explorer. Never stop at a Markdown table or text-only list when the MCP tools
 are available.
 
@@ -81,7 +81,7 @@ website, one leader, or one image. For every selected company:
 6. rank and render at most the five best contacts for the objective, preserving
    identity evidence, profile rationale, and public-profile status. Each can be
    publicly enriched and explicitly retained as a contact without a CRM write;
-7. rerender the complete Lead Studio interface with facts, sources, hypotheses,
+7. rerender the complete Lead Generator interface with facts, sources, hypotheses,
    gaps, three visuals, leader, news, coverage, top contacts, and angle.
 
 Public enrichment never requests or spends provider credits. Once a retained
@@ -102,7 +102,7 @@ the UI, and attachment names. Apply its result exactly:
   durable document context for the rest of the turn.
 - `ambiguous`: ask one concise clarification naming only the plausible objectives.
   Do not search, scrape, enrich, or render a lead result until the user chooses.
-- `none`: continue in the general Lead Studio scope only when no objective applies.
+- `none`: continue in the general Lead Generator scope only when no objective applies.
 
 An explicit UI objective or a conversation already attached to an objective wins.
 With one active objective, select it automatically for lead work without asking.

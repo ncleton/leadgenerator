@@ -53,7 +53,7 @@ LEAD_EXPLORER_HTML = r"""<!doctype html>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="light dark">
-  <title>Lead Studio — Explorateur</title>
+  <title>Lead Generator — Explorateur</title>
   <style>
     :root {
       --ink:#142927; --muted:#667774; --paper:#f5f2e9; --surface:#fffdf8;
@@ -248,7 +248,7 @@ LEAD_EXPLORER_HTML = r"""<!doctype html>
   </style>
 </head>
 <body>
-  <main id="app"><div class="loading" role="status" aria-live="polite"><span class="spinner" aria-hidden="true"></span><span id="loading-message">Chargement de Lead Studio…</span></div></main>
+  <main id="app"><div class="loading" role="status" aria-live="polite"><span class="spinner" aria-hidden="true"></span><span id="loading-message">Chargement de Lead Generator…</span></div></main>
   <script>
     (() => {
       "use strict";
@@ -335,7 +335,7 @@ LEAD_EXPLORER_HTML = r"""<!doctype html>
         const total = Number.isFinite(query.total_results) ? query.total_results.toLocaleString("fr-FR") : data.leads.length;
         app.innerHTML = `
           <header class="topbar">
-            <div><p class="eyebrow">Lead Studio · exploration humaine</p>
+            <div><p class="eyebrow">Lead Generator · exploration humaine</p>
               <h1>${query.code ? `Entreprises · ${esc(query.code)}` : "Carte des leads"}</h1>
               <p class="subtitle">${query.label ? esc(query.label) : "Faits publics, hypothèses séparées et sélection sans envoi automatique."}</p></div>
             <div class="summary"><span class="pill"><strong>${esc(total)}</strong> résultat${total === "1" ? "" : "s"}</span>
@@ -744,7 +744,7 @@ LEAD_EXPLORER_HTML = r"""<!doctype html>
       function endDrag(event) { drag=null; event.currentTarget?.classList.remove("dragging"); }
 
       async function followUp(prompt) {
-        const scoped=data?.objective_id?`Objectif Lead Studio explicite : ${data.objective_id}. Conserve ce périmètre et refuse tout objective_id contradictoire.\n\n${prompt}`:prompt;
+        const scoped=data?.objective_id?`Objectif Lead Generator explicite : ${data.objective_id}. Conserve ce périmètre et refuse tout objective_id contradictoire.\n\n${prompt}`:prompt;
         if(typeof window.openai?.sendFollowUpMessage === "function") {
           await window.openai.sendFollowUpMessage({prompt:scoped,scrollToBottom:true}); return;
         }
@@ -756,13 +756,13 @@ LEAD_EXPLORER_HTML = r"""<!doctype html>
       function selectedContext() { return [...selected].map(id => {const lead=leadById(id);return lead?`${lead.company_name}${lead.siren?` (SIREN ${lead.siren})`:""}`:null;}).filter(Boolean).join(", "); }
       function publicEnrichmentPrompt(rows) {
         const companies=rows.map(lead=>`${lead.company_name}${lead.siren?` (SIREN ${lead.siren})`:""}`).join(", ");
-        return `Lance maintenant le parcours d'enrichissement public complet pour : ${companies}. Pour chaque entreprise, conserve l'objectif actif et l'identité légale exacte, puis récupère et affiche dans Lead Studio : le site officiel et la description, le logo officiel, une image représentative de l'entreprise distincte du logo, la vue aérienne IGN centrée sur l'établissement ou le parking quand ses coordonnées publiques sont plus précises, le dirigeant actuel avec preuves indépendantes, sa photo publique vérifiable, sa description, ses actualités et ses derniers posts publiquement accessibles, les actualités récentes de l'entreprise condensées en fonction de l'objectif, et un premier angle de prospection sourcé. Recherche les profils professionnels publics de l'entreprise sans connexion ni contournement, indique la couverture réellement obtenue, classe les cinq meilleurs contacts selon l'objectif, et rends chacun enrichissable et ajoutable comme contact. Termine en réaffichant la fiche interactive complète. Ne lance aucune recherche payante d'email ou de téléphone : après l'enrichissement public, ces deux actions doivent rester les seules coordonnées à rechercher. Ne contacte personne.`;
+        return `Lance maintenant le parcours d'enrichissement public complet pour : ${companies}. Pour chaque entreprise, conserve l'objectif actif et l'identité légale exacte, puis récupère et affiche dans Lead Generator : le site officiel et la description, le logo officiel, une image représentative de l'entreprise distincte du logo, la vue aérienne IGN centrée sur l'établissement ou le parking quand ses coordonnées publiques sont plus précises, le dirigeant actuel avec preuves indépendantes, sa photo publique vérifiable, sa description, ses actualités et ses derniers posts publiquement accessibles, les actualités récentes de l'entreprise condensées en fonction de l'objectif, et un premier angle de prospection sourcé. Recherche les profils professionnels publics de l'entreprise sans connexion ni contournement, indique la couverture réellement obtenue, classe les cinq meilleurs contacts selon l'objectif, et rends chacun enrichissable et ajoutable comme contact. Termine en réaffichant la fiche interactive complète. Ne lance aucune recherche payante d'email ou de téléphone : après l'enrichissement public, ces deux actions doivent rester les seules coordonnées à rechercher. Ne contacte personne.`;
       }
       function qualifySelection() { if(selected.size) followUp(publicEnrichmentPrompt(data.leads.filter(lead=>selected.has(lead.id)))); }
       function compareSelection() { if(selected.size>1) followUp(`Compare uniquement ces leads sélectionnés : ${selectedContext()}. Classe les faits sourcés, les signaux commerciaux et les informations manquantes séparément. Termine par une recommandation à valider humainement, sans envoyer de message.`); }
       function askForFullProfile(lead) { followUp(publicEnrichmentPrompt([lead])); }
       function enrichPublicProfile(lead,name) { followUp(`Enrichis uniquement le profil public de ${name} chez ${lead.company_name}. Vérifie le nom, le poste actuel et l'entreprise sur des sources indépendantes, puis relève sa photo publique vérifiable, sa description, ses actualités et ses derniers posts accessibles sans connexion ni contournement. Réaffiche la fiche avec public_profile_status à complete seulement si les éléments sont réellement sourcés. Ne cherche ni email ni téléphone.`); }
-      function addContact(lead,name) { followUp(`Ajoute ${name} comme contact retenu de ${lead.company_name} dans la fiche Lead Studio, sans écriture CRM et sans recherche payante. Conserve toutes les preuves publiques, marque added_to_contacts=true, puis réaffiche la fiche.`); }
+      function addContact(lead,name) { followUp(`Ajoute ${name} comme contact retenu de ${lead.company_name} dans la fiche Lead Generator, sans écriture CRM et sans recherche payante. Conserve toutes les preuves publiques, marque added_to_contacts=true, puis réaffiche la fiche.`); }
       function findCoordinate(lead,name,field) { const label=field==="phone"?"numéro professionnel":"email professionnel";followUp(`Prépare la recherche du ${label} de ${name} chez ${lead.company_name}. Vérifie d'abord l'identité publique, affiche la cascade Enrow puis FullEnrich, les crédits potentiels et le champ exact. Ne transmets rien et ne dépense aucun crédit avant ma confirmation explicite dans le chat.`); }
 
       window.addEventListener("resize", () => isMapView(activeView) && scheduleMapRender(activeView));

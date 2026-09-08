@@ -370,7 +370,7 @@ def submit_contact_lookup(
     if provider == "enrow":
         if "phone" in contact.fields and not contact.linkedin_url:
             raise ValueError(
-                "Lead Studio exige un profil LinkedIn vérifié pour Enrow Phone."
+                "Lead Generator exige un profil LinkedIn vérifié pour Enrow Phone."
             )
         key = _api_key(provider)
         jobs = _submit_enrow(contact, key=key, timeout=timeout)
@@ -421,7 +421,7 @@ def _submit_enrow(
             endpoint = f"{ENROW_BASE}/phone/single"
             if not contact.linkedin_url:
                 raise ValueError(
-                    "Lead Studio exige un profil LinkedIn vérifié pour Enrow Phone."
+                    "Lead Generator exige un profil LinkedIn vérifié pour Enrow Phone."
                 )
             payload = {"linkedin_url": contact.linkedin_url}
         response = _request_json(
@@ -469,7 +469,7 @@ def _submit_fullenrich(
             "Content-Type": "application/json",
         },
         payload={
-            "name": f"Lead Studio - {contact.first_name} {contact.last_name}",
+            "name": f"Lead Generator - {contact.first_name} {contact.last_name}",
             "data": [row],
         },
         timeout=timeout,

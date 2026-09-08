@@ -1,10 +1,10 @@
 # AGENTS.md
 
-Instructions for coding agents working on Lead Studio.
+Instructions for coding agents working on Lead Generator.
 
 ## Product boundary
 
-Lead Studio is a human-reviewed B2B research assistant. It may collect relevant
+Lead Generator is a human-reviewed B2B research assistant. It may collect relevant
 facts from public professional websites, identify commercial signals, and draft
 outreach for review. It must not send messages, invent personal data, bypass
 access controls, or treat a model hypothesis as a verified fact.

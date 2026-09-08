@@ -1,4 +1,4 @@
-"""Private, machine-local offer profiles for Lead Studio."""
+"""Private, machine-local offer profiles for Lead Generator."""
 
 from __future__ import annotations
 

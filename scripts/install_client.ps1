@@ -7,7 +7,7 @@ if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
     throw "uv n'est pas installe. Installez-le depuis https://docs.astral.sh/uv/ puis relancez ce script."
 }
 
-Write-Host "Installation de Lead Studio dans $RootDir"
+Write-Host "Installation de Lead Generator dans $RootDir"
 uv sync --project plugins/lead-studio --frozen
 if ($LASTEXITCODE -ne 0) { throw "L'installation Python a echoue." }
 
@@ -45,7 +45,7 @@ if (Test-Path -LiteralPath $CacheRoot -PathType Container) {
     )
 }
 
-# Older installers copied the generic Lead Studio skills directly into
+# Older installers copied the generic Lead Generator skills directly into
 # ~/.codex/skills. Archive those stale duplicates without touching offer-specific
 # skills or the local user profile.
 $LegacySkills = @(
@@ -91,10 +91,10 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "La lecture des marketplaces Codex a echoue." }
     if (-not $MarketplaceList.Contains($RootDir)) {
         & $CodexBin plugin marketplace add $RootDir
-        if ($LASTEXITCODE -ne 0) { throw "L'ajout du marketplace Lead Studio a echoue." }
+        if ($LASTEXITCODE -ne 0) { throw "L'ajout du marketplace Lead Generator a echoue." }
     }
     & $CodexBin plugin add $PluginName
-    if ($LASTEXITCODE -ne 0) { throw "L'installation du plugin Lead Studio a echoue." }
+    if ($LASTEXITCODE -ne 0) { throw "L'installation du plugin Lead Generator a echoue." }
 
     # Build the cached environment explicitly. A development virtualenv is not
     # portable once copied into the Codex cache.
@@ -114,9 +114,9 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "La reconstruction de l'environnement Python du cache a echoue." }
     }
     uv sync --project $InstalledPluginRoot --frozen
-    if ($LASTEXITCODE -ne 0) { throw "L'installation Python du cache Lead Studio a echoue." }
+    if ($LASTEXITCODE -ne 0) { throw "L'installation Python du cache Lead Generator a echoue." }
     uv run --project $InstalledPluginRoot --frozen python -c "import lead_studio.mcp.server"
-    if ($LASTEXITCODE -ne 0) { throw "Le serveur MCP Lead Studio installe ne demarre pas." }
+    if ($LASTEXITCODE -ne 0) { throw "Le serveur MCP Lead Generator installe ne demarre pas." }
 
     # Keep paths retained by already-open Codex tasks resolvable after upgrades.
     foreach ($CachedVersion in $PreviousCacheVersions) {
@@ -139,7 +139,7 @@ finally {
 }
 
 Write-Host ""
-Write-Host "Installation terminee. Le plugin Lead Studio et ses skills sont installes."
+Write-Host "Installation terminee. Le plugin Lead Generator et ses skills sont installes."
 Write-Host "Ouvrez une nouvelle conversation Codex, puis demandez :"
-Write-Host "  Trouvez-moi des prospects et affichez le parcours visuel Lead Studio."
+Write-Host "  Trouvez-moi des prospects et affichez le parcours visuel Lead Generator."
 Write-Host "  Ou : montrez-moi 20 entreprises du code NAF 62.01Z."

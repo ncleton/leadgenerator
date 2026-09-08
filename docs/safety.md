@@ -21,7 +21,7 @@ fournisseurs. `sync_hubspot_contacts` exige `confirm_hubspot_write: true` après
 présentation des contacts, de la liste et du propriétaire.
 
 Un clic dans l'interface, une sélection antérieure ou une confirmation générique
-ne remplace pas cette autorisation au point d'action. Lead Studio n'envoie aucun
+ne remplace pas cette autorisation au point d'action. Lead Generator n'envoie aucun
 email, message, invitation ou séquence commerciale.
 
 ## Secrets et état local
