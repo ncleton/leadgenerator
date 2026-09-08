@@ -25,7 +25,7 @@
     <a href="https://www.crummy.com/software/BeautifulSoup/"><img src="https://img.shields.io/badge/Beautiful_Soup-4.14+-0B6B58?style=flat-square&logo=python&logoColor=white" alt="Beautiful Soup"></a>
     <a href="https://github.com/Alir3z4/html2text"><img src="https://img.shields.io/badge/html2text-2025+-555555?style=flat-square&logo=markdown&logoColor=white" alt="html2text"></a>
     <a href="https://pypdf.readthedocs.io/"><img src="https://img.shields.io/badge/pypdf-6.x-EC1C24?style=flat-square&logo=adobeacrobatreader&logoColor=white" alt="pypdf"></a>
-    <a href="https://docs.pytest.org/"><img src="https://img.shields.io/badge/pytest-140_tests-0A9EDC?style=flat-square&logo=pytest&logoColor=white" alt="pytest"></a>
+    <a href="https://docs.pytest.org/"><img src="https://img.shields.io/badge/pytest-149_tests-0A9EDC?style=flat-square&logo=pytest&logoColor=white" alt="pytest"></a>
     <a href="https://docs.astral.sh/ruff/"><img src="https://img.shields.io/badge/Ruff-checked-D7FF64?style=flat-square&logo=ruff&logoColor=111111" alt="Ruff"></a>
     <a href="https://black.readthedocs.io/"><img src="https://img.shields.io/badge/Black-formatted-000000?style=flat-square&logo=python&logoColor=white" alt="Black"></a>
     <a href="https://enrow.io/"><img src="https://img.shields.io/badge/Enrow-first_pass-263238?style=flat-square" alt="Enrow contact enrichment"></a>
@@ -42,6 +42,28 @@ Lead Generator garde le bon objectif et demande lequel utiliser en cas
 d'ambiguïté. Il fonctionne avec une interface visuelle ou en mode texte. Toute
 recherche payante ou écriture HubSpot nécessite votre accord. Les entreprises
 déjà étudiées sont mémorisées localement dans PostgreSQL, jamais dans Git.
+
+## Démarrage rapide
+
+Prérequis : [Codex](https://developers.openai.com/codex/),
+[`uv`](https://docs.astral.sh/uv/) et une connexion Internet.
+
+```bash
+git clone https://github.com/ncleton/leadgenerator.git
+cd leadgenerator
+./scripts/install_client.sh
+```
+
+L'installateur met à jour Codex si nécessaire, installe le plugin, puis lance un
+vrai échange MCP isolé : découverte des outils, recherche dans le registre
+officiel, routage d'un objectif, rendu de l'explorateur et lecture de sa ressource
+HTML. Il se termine uniquement lorsque le résultat JSON contient `"status":
+"ok"`.
+
+Quitter ensuite complètement l'application ChatGPT/Codex, la relancer et demander
+« Trouve-moi des industriels dans le département du Nord et affiche le parcours
+Lead Generator. » Le succès visible est une recherche sourcée suivie de
+l'explorateur MCP interactif. PostgreSQL est facultatif pour ce premier parcours.
 
 ## Enrichissement des contacts avec Enrow et FullEnrich
 
@@ -82,20 +104,9 @@ automatiquement.
 Consulter [docs/file-map.md](docs/file-map.md) pour expliquer le rôle de chaque
 famille de fichiers pendant une formation.
 
-## Installation
+## Installation détaillée
 
-Prérequis : [Codex](https://developers.openai.com/codex/),
-[`uv`](https://docs.astral.sh/uv/), PostgreSQL et une connexion Internet.
-
-macOS ou Linux :
-
-```bash
-git clone https://github.com/ncleton/leadgenerator.git
-cd leadgenerator
-./scripts/install_client.sh
-```
-
-Windows PowerShell :
+Sur Windows PowerShell, le parcours équivalent est :
 
 ```powershell
 git clone https://github.com/ncleton/leadgenerator.git
@@ -103,8 +114,11 @@ Set-Location leadgenerator
 .\scripts\install_client.ps1
 ```
 
-Ouvrir ensuite une nouvelle tâche Codex et demander : « Trouve-moi des prospects
-dans l'industrie et affiche le parcours Lead Generator. » Si aucun objectif n'est
+Quitter complètement l'application ChatGPT/Codex après l'installation, puis la
+relancer. Une application déjà ouverte conserve son ancien inventaire de plugins ;
+ouvrir seulement un nouvel onglet ou une nouvelle tâche ne suffit pas. Ouvrir
+ensuite une nouvelle tâche et demander : « Trouve-moi des industriels
+dans le département du Nord et affiche le parcours Lead Generator. » Si aucun objectif n'est
 encore configuré, l'agent demande d'abord ce que vous vendez, la cible, la zone,
 les interlocuteurs et les signaux recherchés, avec un exemple concret. Aucune
 recherche n'est lancée avant cette réponse. En mode interface (activé par défaut),
@@ -112,8 +126,10 @@ la recherche s'achève par un vrai rendu de l'explorateur MCP dans la conversati
 
 ### Mémoire privée PostgreSQL
 
-Par défaut, Lead Generator utilise la base locale `leadgenerator` via le socket
-Unix. Elle peut être créée avant le premier lancement avec :
+Par défaut, Lead Generator essaie d'utiliser la base locale `leadgenerator` via
+le socket Unix. La recherche reste fonctionnelle avec un avertissement explicite
+si PostgreSQL ou cette base ne sont pas disponibles. Pour activer la mémoire,
+créer la base avant le premier lancement avec :
 
 ```bash
 createdb leadgenerator

@@ -76,6 +76,23 @@ def test_only_objective_is_automatic_for_lead_work(tmp_path: Path):
     assert unrelated_decision.status == "not_applicable"
 
 
+def test_industrial_request_is_recognized_without_the_word_lead(tmp_path: Path):
+    """The natural starter wording must enter the configured lead workflow."""
+    store = ObjectiveStore(tmp_path / "objectives")
+    store.create(
+        objective_id="industrie",
+        name="Industrie",
+        description="Prospecter les industriels des Hauts-de-France",
+        instructions="Qualifier les entreprises avec des faits publics.",
+    )
+
+    decision = store.route("Trouve-moi des industriels dans la métropole lilloise")
+
+    assert decision.status == "selected"
+    assert decision.objective_id == "industrie"
+    assert decision.reason == "only_objective_for_lead_work"
+
+
 def test_triggers_and_examples_select_a_clear_objective(tmp_path: Path):
     store = _create_two_objectives(tmp_path)
 

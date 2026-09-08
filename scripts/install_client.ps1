@@ -7,8 +7,33 @@ if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
     throw "uv n'est pas installe. Installez-le depuis https://docs.astral.sh/uv/ puis relancez ce script."
 }
 
+if (-not (Get-Command codex -ErrorAction SilentlyContinue)) {
+    throw "Codex n'est pas installe. Installez-le depuis https://developers.openai.com/codex/ puis relancez ce script."
+}
+$CodexBin = (Get-Command codex).Source
+$MinimumCodexVersion = [Version]"0.153.4"
+$VersionOutput = (& $CodexBin --version | Out-String)
+if ($VersionOutput -notmatch '(\d+\.\d+\.\d+)') {
+    throw "La version de Codex n'a pas pu etre determinee : $VersionOutput"
+}
+$CodexVersion = [Version]$Matches[1]
+if ($CodexVersion -lt $MinimumCodexVersion) {
+    Write-Host "Mise a jour de Codex requise ($CodexVersion -> $MinimumCodexVersion ou version plus recente)."
+    & $CodexBin update
+    if ($LASTEXITCODE -ne 0) { throw "La mise a jour de Codex a echoue." }
+    $CodexBin = (Get-Command codex).Source
+    $VersionOutput = (& $CodexBin --version | Out-String)
+    if ($VersionOutput -notmatch '(\d+\.\d+\.\d+)') {
+        throw "La version de Codex n'a pas pu etre determinee apres mise a jour : $VersionOutput"
+    }
+    $CodexVersion = [Version]$Matches[1]
+    if ($CodexVersion -lt $MinimumCodexVersion) {
+        throw "Codex $MinimumCodexVersion ou plus recent est requis ; version detectee : $CodexVersion."
+    }
+}
+
 Write-Host "Installation de Lead Generator dans $RootDir"
-uv sync --project plugins/leadgenerator --frozen
+uv sync --project plugins/leadgenerator --frozen --python 3.13
 if ($LASTEXITCODE -ne 0) { throw "L'installation Python a echoue." }
 
 uv run --project plugins/leadgenerator leadgenerator-migrate-profiles
@@ -17,10 +42,6 @@ if ($LASTEXITCODE -ne 0) { throw "La migration des profils prives a echoue." }
 uv run --project plugins/leadgenerator playwright install chromium
 if ($LASTEXITCODE -ne 0) { throw "L'installation de Chromium a echoue." }
 
-if (-not (Get-Command codex -ErrorAction SilentlyContinue)) {
-    throw "Codex n'est pas installe. Installez-le depuis https://developers.openai.com/codex/ puis relancez ce script."
-}
-$CodexBin = (Get-Command codex).Source
 & $CodexBin login status *> $null
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Connexion ChatGPT requise pour utiliser le modele OpenAI."
@@ -113,10 +134,16 @@ try {
         uv venv --clear --python 3.13 $CachedVenv
         if ($LASTEXITCODE -ne 0) { throw "La reconstruction de l'environnement Python du cache a echoue." }
     }
-    uv sync --project $InstalledPluginRoot --frozen
+    uv sync --project $InstalledPluginRoot --frozen --python 3.13
     if ($LASTEXITCODE -ne 0) { throw "L'installation Python du cache Lead Generator a echoue." }
     uv run --project $InstalledPluginRoot --frozen python -c "import leadgenerator.mcp.server"
     if ($LASTEXITCODE -ne 0) { throw "Le serveur MCP Lead Generator installe ne demarre pas." }
+    uv run --project $InstalledPluginRoot --frozen python `
+        (Join-Path $RootDir "scripts/verify_installed_plugin.py") `
+        --plugin-root $InstalledPluginRoot
+    if ($LASTEXITCODE -ne 0) {
+        throw "Le test MCP reel de Lead Generator a echoue ; le plugin n'est pas operationnel."
+    }
 
     # Keep paths retained by already-open Codex tasks resolvable after upgrades.
     foreach ($CachedVersion in $PreviousCacheVersions) {
@@ -139,8 +166,9 @@ finally {
 }
 
 Write-Host ""
-Write-Host "Installation terminee. Le plugin Lead Generator et ses skills sont installes."
-Write-Host "Ouvrez une nouvelle conversation Codex, puis demandez :"
+Write-Host "Installation et validation reelle terminees. Le plugin Lead Generator, son serveur MCP et son interface sont fonctionnels."
+Write-Host "Quittez completement l'application ChatGPT/Codex puis relancez-la : un simple nouvel onglet ne recharge pas les plugins installes."
+Write-Host "Dans une nouvelle conversation apres redemarrage, demandez :"
 Write-Host "  Trouvez-moi des leads dans l'industrie."
 Write-Host "Sans objectif configure, l'agent doit d'abord demander votre offre et votre cible."
 Write-Host "Apres creation de l'objectif, il lancera la recherche puis l'interface MCP."

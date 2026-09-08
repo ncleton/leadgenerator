@@ -9,8 +9,42 @@ if ! command -v uv >/dev/null 2>&1; then
     exit 1
 fi
 
+if ! command -v codex >/dev/null 2>&1; then
+    echo "Codex n'est pas installe. Installe-le depuis https://developers.openai.com/codex/ puis relance ce script."
+    exit 1
+fi
+CODEX_BIN="$(command -v codex)"
+MIN_CODEX_VERSION="0.153.4"
+CODEX_VERSION="$($CODEX_BIN --version | awk '{print $NF}')"
+version_at_least() {
+    awk -v current="$1" -v minimum="$2" 'BEGIN {
+        split(current, actual, ".")
+        split(minimum, required, ".")
+        for (part = 1; part <= 3; part++) {
+            sub(/[^0-9].*$/, "", actual[part])
+            sub(/[^0-9].*$/, "", required[part])
+            actual[part] += 0
+            required[part] += 0
+            if (actual[part] > required[part]) exit 0
+            if (actual[part] < required[part]) exit 1
+        }
+        exit 0
+    }'
+}
+if ! version_at_least "$CODEX_VERSION" "$MIN_CODEX_VERSION"; then
+    echo "Mise a jour de Codex requise ($CODEX_VERSION -> $MIN_CODEX_VERSION ou version plus recente)."
+    "$CODEX_BIN" update
+    hash -r
+    CODEX_BIN="$(command -v codex)"
+    CODEX_VERSION="$($CODEX_BIN --version | awk '{print $NF}')"
+    if ! version_at_least "$CODEX_VERSION" "$MIN_CODEX_VERSION"; then
+        echo "Codex $MIN_CODEX_VERSION ou plus recent est requis ; version detectee : $CODEX_VERSION."
+        exit 1
+    fi
+fi
+
 echo "Installation de Lead Generator dans $ROOT_DIR"
-uv sync --project plugins/leadgenerator --frozen
+uv sync --project plugins/leadgenerator --frozen --python 3.13
 uv run --project plugins/leadgenerator leadgenerator-migrate-profiles
 
 if [[ "$(uname -s)" == "Linux" ]]; then
@@ -19,11 +53,6 @@ else
     uv run --project plugins/leadgenerator playwright install chromium
 fi
 
-if ! command -v codex >/dev/null 2>&1; then
-    echo "Codex n'est pas installe. Installe-le depuis https://developers.openai.com/codex/ puis relance ce script."
-    exit 1
-fi
-CODEX_BIN="$(command -v codex)"
 if ! "$CODEX_BIN" login status >/dev/null 2>&1; then
     echo "Connexion ChatGPT requise pour utiliser le modele OpenAI."
     "$CODEX_BIN" login --device-auth
@@ -113,9 +142,12 @@ fi
 if [[ -d "$INSTALLED_PLUGIN_ROOT/.venv" && ! -x "$INSTALLED_PLUGIN_ROOT/.venv/bin/python" ]]; then
     uv venv --clear --python 3.13 "$INSTALLED_PLUGIN_ROOT/.venv"
 fi
-uv sync --project "$INSTALLED_PLUGIN_ROOT" --frozen
+uv sync --project "$INSTALLED_PLUGIN_ROOT" --frozen --python 3.13
 uv run --project "$INSTALLED_PLUGIN_ROOT" --frozen python -c \
     'import leadgenerator.mcp.server'
+uv run --project "$INSTALLED_PLUGIN_ROOT" --frozen python \
+    "$ROOT_DIR/scripts/verify_installed_plugin.py" \
+    --plugin-root "$INSTALLED_PLUGIN_ROOT"
 
 # Keep paths referenced by already-open Codex tasks resolvable. Codex removes
 # older version directories during an upgrade, while existing tasks retain their
@@ -131,8 +163,9 @@ restore_plugin_venv
 trap - EXIT
 
 echo
-echo "Installation terminee. Le plugin Lead Generator et ses skills sont installes."
-echo "Ouvre une nouvelle conversation Codex, puis demande :"
+echo "Installation et validation reelle terminees. Le plugin Lead Generator, son serveur MCP et son interface sont fonctionnels."
+echo "Quitte completement l'application ChatGPT/Codex puis relance-la : un simple nouvel onglet ne recharge pas les plugins installes."
+echo "Dans une nouvelle conversation apres redemarrage, demande :"
 echo "  Trouve-moi des leads dans l'industrie."
 echo "Sans objectif configure, l'agent doit d'abord te demander ton offre et ta cible."
 echo "Apres creation de l'objectif, il lancera la recherche puis l'interface MCP."
