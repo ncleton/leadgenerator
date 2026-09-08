@@ -11,6 +11,15 @@ All notable changes to Lead Generator are documented here. The project follows
   return a concrete setup example when none exists.
 - Require the actual MCP Apps explorer render in `chat_ui` mode and prohibit
   claims that the interface was displayed when the render tool did not succeed.
+- Require a Codex version that can load the plugin MCP tools in fresh processes,
+  and update older local installations before installing the plugin.
+- Run an isolated end-to-end MCP smoke test during installation against the live
+  official company register, without requiring PostgreSQL.
+- Recognize natural industrial prospecting requests without requiring the word
+  "lead", and require the selected local establishment itself to belong to the
+  requested activity section.
+- Tell desktop users to restart the application so it reloads the installed
+  plugin instead of keeping stale skills and MCP tool inventories.
 ## [0.4.0] - 2026-09-08
 
 ### Added

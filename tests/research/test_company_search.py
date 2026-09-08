@@ -213,6 +213,91 @@ def test_search_requires_activity_and_region_on_the_same_establishment(monkeypat
     assert "l'activité et à la zone demandées" in result.limitations[-1]
 
 
+def test_search_requires_activity_section_and_region_on_same_establishment(
+    monkeypatch,
+):
+    """A section-C company cannot qualify through a local energy branch."""
+    monkeypatch.setattr(
+        "leadgenerator.research.company_search._read_json",
+        lambda _url, _timeout: {
+            "total_results": 1,
+            "results": [
+                {
+                    "nom_complet": "INDUSTRIE HORS ZONE",
+                    "siren": "123456789",
+                    "activite_principale": "33.20D",
+                    "siege": {
+                        "adresse": "1 RUE DU SIÈGE 92800 PUTEAUX",
+                        "region": "11",
+                        "activite_principale": "33.20D",
+                        "etat_administratif": "A",
+                    },
+                    "matching_etablissements": [
+                        {
+                            "adresse": "2 RUE DE L'ÉNERGIE 59000 LILLE",
+                            "code_postal": "59000",
+                            "region": "32",
+                            "activite_principale": "35.14Z",
+                            "etat_administratif": "A",
+                        }
+                    ],
+                }
+            ],
+        },
+    )
+
+    result = search_french_companies(
+        CompanySearchRequest(activity_section="C", region="Hauts-de-France")
+    )
+
+    assert result.companies == []
+    assert "l'activité et à la zone demandées" in result.limitations[-1]
+
+
+def test_search_keeps_and_labels_local_establishment_in_requested_section(monkeypatch):
+    """The displayed NAF fact comes from the selected local establishment."""
+    monkeypatch.setattr(
+        "leadgenerator.research.company_search._read_json",
+        lambda _url, _timeout: {
+            "total_results": 1,
+            "results": [
+                {
+                    "nom_complet": "INDUSTRIE LILLOISE",
+                    "siren": "123456789",
+                    "activite_principale": "33.20D",
+                    "siege": {
+                        "adresse": "1 RUE DU SIÈGE 92800 PUTEAUX",
+                        "region": "11",
+                        "activite_principale": "33.20D",
+                        "etat_administratif": "A",
+                    },
+                    "matching_etablissements": [
+                        {
+                            "siret": "12345678900028",
+                            "adresse": "2 RUE DE L'USINE 59000 LILLE",
+                            "code_postal": "59000",
+                            "libelle_commune": "LILLE",
+                            "region": "32",
+                            "activite_principale": "10.71C",
+                            "activite_principale_libelle": "Boulangerie industrielle",
+                            "etat_administratif": "A",
+                        }
+                    ],
+                }
+            ],
+        },
+    )
+
+    result = search_french_companies(
+        CompanySearchRequest(activity_section="C", region="Hauts-de-France")
+    )
+    company = result.companies[0]
+
+    assert company.siret == "12345678900028"
+    assert company.naf_code == "10.71C"
+    assert company.naf_label == "Boulangerie industrielle"
+
+
 def test_headquarters_only_excludes_a_company_with_only_a_regional_branch(
     monkeypatch,
 ):

@@ -70,6 +70,33 @@ REGION_DEPARTMENTS = {
     "32": frozenset({"02", "59", "60", "62", "80"}),
 }
 
+# NAF divisions belonging to each official activity section. When an API result
+# matches a company-level section and a geographic filter, the local
+# establishment must independently belong to that same section.
+ACTIVITY_SECTION_DIVISIONS = {
+    "A": frozenset(range(1, 4)),
+    "B": frozenset(range(5, 10)),
+    "C": frozenset(range(10, 34)),
+    "D": frozenset({35}),
+    "E": frozenset(range(36, 40)),
+    "F": frozenset(range(41, 44)),
+    "G": frozenset(range(45, 48)),
+    "H": frozenset(range(49, 54)),
+    "I": frozenset(range(55, 57)),
+    "J": frozenset(range(58, 64)),
+    "K": frozenset(range(64, 67)),
+    "L": frozenset({68}),
+    "M": frozenset(range(69, 76)),
+    "N": frozenset(range(77, 83)),
+    "O": frozenset({84}),
+    "P": frozenset({85}),
+    "Q": frozenset(range(86, 89)),
+    "R": frozenset(range(90, 94)),
+    "S": frozenset(range(94, 97)),
+    "T": frozenset(range(97, 99)),
+    "U": frozenset({99}),
+}
+
 
 class CompanySearchRequest(StrictModel):
     """Structured filters translated from a human prospecting request."""
@@ -230,9 +257,17 @@ def _read_json(url: str, timeout: int) -> dict[str, Any]:
         raise RuntimeError(
             f"L'API Recherche d'Entreprises a répondu HTTP {exc.code}: {detail}"
         ) from exc
+    except TimeoutError as exc:
+        raise RuntimeError(
+            "L'API Recherche d'Entreprises n'a pas répondu dans le délai imparti. "
+            "Vérifiez l'accès HTTPS à recherche-entreprises.api.gouv.fr puis "
+            "relancez la recherche."
+        ) from exc
     except URLError as exc:
         raise RuntimeError(
-            "L'API Recherche d'Entreprises est momentanément inaccessible."
+            "L'API Recherche d'Entreprises est inaccessible depuis cette machine. "
+            "Vérifiez le réseau, le DNS et l'accès HTTPS à "
+            "recherche-entreprises.api.gouv.fr puis relancez la recherche."
         ) from exc
 
 
@@ -285,6 +320,16 @@ def _matches_geography(
     return True
 
 
+def _matches_activity_section(naf_code: object, activity_section: str) -> bool:
+    """Conservatively map an observed establishment NAF code to its section."""
+    normalized_section = activity_section.strip().upper()
+    divisions = ACTIVITY_SECTION_DIVISIONS.get(normalized_section)
+    code = str(naf_code or "")
+    if divisions is None or len(code) < 2 or not code[:2].isdigit():
+        return False
+    return int(code[:2]) in divisions
+
+
 def _matching_location(
     item: dict[str, Any], search: CompanySearchRequest
 ) -> tuple[dict[str, Any], str] | None:
@@ -315,6 +360,14 @@ def _matching_location(
             establishment
             for establishment in matching
             if establishment.get("activite_principale") in requested_naf
+        ]
+    if search.activity_section:
+        matching = [
+            establishment
+            for establishment in matching
+            if _matches_activity_section(
+                establishment.get("activite_principale"), search.activity_section
+            )
         ]
     if not matching:
         return None
@@ -350,6 +403,10 @@ def _company_from_api(
     if selected_location is None:
         return None
     location, location_label = selected_location
+    has_geography = any(
+        (search.region, search.department, search.commune, search.postal_code)
+    )
+    location_naf_code = location.get("activite_principale") if has_geography else None
     siren = str(item.get("siren") or "")
     band_code = item.get("tranche_effectif_salarie")
     band = EMPLOYEE_BANDS_BY_CODE.get(str(band_code))
@@ -357,7 +414,7 @@ def _company_from_api(
         name=str(item.get("nom_complet") or item.get("nom_raison_sociale") or ""),
         siren=siren,
         siret=str(location.get("siret")) if location.get("siret") else None,
-        naf_code=item.get("activite_principale"),
+        naf_code=location_naf_code or item.get("activite_principale"),
         naf_label=(
             location.get("activite_principale_libelle")
             or item.get("activite_principale_libelle")
