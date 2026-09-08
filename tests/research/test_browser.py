@@ -1,6 +1,6 @@
-"""Tests for the lightweight Lead Studio browser collector."""
+"""Tests for the lightweight Lead Generator browser collector."""
 
-from lead_studio.research.browser import html_to_markdown
+from leadgenerator.research.browser import html_to_markdown
 
 
 def test_html_to_markdown_keeps_evidence_and_removes_scripts():

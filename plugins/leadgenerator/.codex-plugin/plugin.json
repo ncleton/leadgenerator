@@ -1,0 +1,44 @@
+{
+  "name": "leadgenerator",
+  "version": "0.4.0+codex.20260908213239",
+  "description": "Evidence-backed B2B lead sourcing, qualification, contact enrichment, and confirmed HubSpot synchronization.",
+  "author": {
+    "name": "Yaka Performance"
+  },
+  "repository": "https://github.com/ncleton/leadgenerator",
+  "license": "MIT",
+  "keywords": [
+    "b2b",
+    "lead-research",
+    "sales",
+    "france"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Lead Generator",
+    "shortDescription": "Source, enrich and sync reviewed B2B leads.",
+    "longDescription": "Lead Generator routes each request to a persistent objective agent, stores reviewed company records in private local PostgreSQL memory, then presents sourced companies, decision-makers, guarded Enrow-to-FullEnrich enrichment, and verified HubSpot synchronization.",
+    "developerName": "Yaka Performance",
+    "category": "Sales",
+    "capabilities": [
+      "Interactive MCP Apps lead explorer",
+      "Fullscreen lead maps with optional ephemeral device geolocation",
+      "Persistent objective agents and document context",
+      "Six-view interactive lead workflow",
+      "Persistent text-only presentation mode",
+      "French NAF company search",
+      "Private PostgreSQL company memory, immutable history, and readable export",
+      "Human-reviewed lead shortlist",
+      "Guarded Enrow-to-FullEnrich enrichment cascade",
+      "Confirmed HubSpot company association, list, and owner assignment"
+    ],
+    "defaultPrompt": [
+      "Je vends une solution de maintenance pr\u00e9dictive aux industriels de 50 \u00e0 250 salari\u00e9s dans les Hauts-de-France : cr\u00e9e l'objectif puis affiche le parcours visuel complet Lead Generator.",
+      "Cr\u00e9e un objectif de prospection avec son agent, ses consignes et ses documents.",
+      "Montre-moi des entreprises pour le code NAF 62.01Z et laisse-moi les cocher.",
+      "Qualifie ma s\u00e9lection et montre le pipeline, les contacts, les visuels et la pr\u00e9paration HubSpot.",
+      "D\u00e9sactive les interfaces Lead Generator et utilise uniquement du texte et des liens."
+    ]
+  },
+  "mcpServers": "./.mcp.json"
+}

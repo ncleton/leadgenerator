@@ -2,7 +2,11 @@
 
 from pathlib import Path
 
-from lead_studio.profiles.objectives import ObjectiveExample, ObjectiveStore
+from leadgenerator.profiles.objectives import (
+    OBJECTIVE_SETUP_PROMPT,
+    ObjectiveExample,
+    ObjectiveStore,
+)
 
 
 def _create_two_objectives(tmp_path: Path) -> ObjectiveStore:
@@ -105,9 +109,27 @@ def test_several_plausible_objectives_require_clarification(tmp_path: Path):
 
 def test_no_objective_and_no_match_are_explicit_states(tmp_path: Path):
     empty = ObjectiveStore(tmp_path / "empty")
-    assert empty.route("Trouve des leads").status == "unconfigured"
+    unconfigured = empty.route("Trouve des leads dans l'industrie")
+
+    assert unconfigured.status == "unconfigured"
+    assert unconfigured.clarification_prompt == OBJECTIVE_SETUP_PROMPT
+    assert "Exemple" in unconfigured.clarification_prompt
+    assert "maintenance prédictive" in unconfigured.clarification_prompt
 
     configured = _create_two_objectives(tmp_path)
     decision = configured.route("Rédige un haïku sur la pluie")
     assert decision.status == "not_applicable"
     assert decision.objective_id is None
+
+
+def test_generic_lead_work_requires_an_objective_choice(tmp_path: Path):
+    store = _create_two_objectives(tmp_path)
+
+    decision = store.route("Trouve-moi des leads dans l'industrie")
+
+    assert decision.status == "ambiguous"
+    assert decision.reason == "lead_work_without_matching_objective"
+    assert decision.clarification_prompt == (
+        "Quel objectif faut-il utiliser pour cette recherche ? Choisissez parmi : "
+        "Construction, Restauration, ou décrivez un nouvel objectif."
+    )

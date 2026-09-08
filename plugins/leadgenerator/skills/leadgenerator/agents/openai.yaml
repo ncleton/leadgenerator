@@ -1,0 +1,12 @@
+interface:
+  display_name: "Lead Generator"
+  short_description: "Piloter la recherche de prospects de bout en bout"
+  default_prompt: "Utilise $leadgenerator pour trouver et qualifier mes prospects dans le mode de présentation configuré."
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "leadgenerator"
+      description: "Outils locaux de recherche et de revue Lead Generator"
+      transport: "stdio"
+policy:
+  allow_implicit_invocation: true

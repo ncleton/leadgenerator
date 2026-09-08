@@ -212,7 +212,13 @@ SENSITIVE_PATTERNS = [
     ("credential-assignment", re.compile(r"(?i)\b(?:api[_-]?key|access[_-]?token|client[_-]?secret|password|passwd)\s*[:=]\s*['\"]?[^\s'\"${}<]{8,}")),
     ("embedded-url-credential", re.compile(r"https?://[^\s/@:]+:[^\s/@]+@")),
     ("iban", re.compile(r"\b[A-Z]{2}\d{2}(?:[ ]?[A-Z0-9]){11,30}\b")),
-    ("french-phone", re.compile(r"(?<!\d)(?:(?:\+33|0033)[ .-]?[1-9]|0[1-9])(?:[ .-]?\d{2}){4}(?!\d)")),
+    (
+        "french-phone",
+        re.compile(
+            r"(?<![A-Za-z0-9])(?:(?:\+33|0033)[ .-]?[1-9]|0[1-9])"
+            r"(?:[ .-]?\d{2}){4}(?![A-Za-z0-9])"
+        ),
+    ),
     ("email", re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.IGNORECASE)),
     ("absolute-user-path", re.compile(r"(?:/" + r"Users/[^/\s]+|/" + r"home/[^/\s]+|[A-Za-z]:\\Users\\[^\\\s]+)")),
 ]
@@ -223,17 +229,6 @@ SAFE_EMAIL_DOMAINS = {
     "example.org",
     "example.net",
     "users.noreply.github.com",
-}
-
-# Cryptographic hashes and package paths in generated lockfiles can contain
-# digit sequences that resemble French phone numbers or IBANs by coincidence.
-# Keep scanning them for credentials, tokens, email addresses, and private paths.
-GENERATED_LOCKFILE_NAMES = {
-    "Cargo.lock",
-    "package-lock.json",
-    "pnpm-lock.yaml",
-    "uv.lock",
-    "yarn.lock",
 }
 
 
@@ -564,10 +559,7 @@ def scan_bytes(data: bytes, relative: str, policy: dict) -> list[str]:
         text = data.decode("utf-8")
     except UnicodeDecodeError:
         return ["non-utf8-review-required"]
-    issues = scan_text(text, relative)
-    if Path(relative).name in GENERATED_LOCKFILE_NAMES:
-        issues = [issue for issue in issues if issue not in {"french-phone", "iban"}]
-    return issues
+    return scan_text(text, relative)
 
 
 def scan_worktree_file(root: Path, relative: str, policy: dict) -> list[str]:

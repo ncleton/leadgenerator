@@ -7,8 +7,8 @@ import json
 from typing import Self
 
 import pytest
-from lead_studio.research.company_directory import search_public_companies_by_naf
-from lead_studio.ui.models import LeadLocation, normalize_naf_code
+from leadgenerator.research.company_directory import search_public_companies_by_naf
+from leadgenerator.ui.models import LeadLocation, normalize_naf_code
 
 
 class JsonResponse(io.BytesIO):
@@ -76,7 +76,9 @@ def test_naf_search_returns_only_business_fields_and_matching_location(monkeypat
         captured["timeout"] = timeout
         return JsonResponse(json.dumps(payload).encode())
 
-    monkeypatch.setattr("lead_studio.research.company_directory.urlopen", fake_urlopen)
+    monkeypatch.setattr(
+        "leadgenerator.research.company_directory.urlopen", fake_urlopen
+    )
 
     result = search_public_companies_by_naf("6201Z", department="44", per_page=10)
     lead = result["leads"][0]

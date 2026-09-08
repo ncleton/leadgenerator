@@ -3,7 +3,7 @@
 import json
 
 import pytest
-from lead_studio.integrations.hubspot import (
+from leadgenerator.integrations.hubspot import (
     HubSpotLead,
     HubSpotOwner,
     _assert_complete_batch,
@@ -114,7 +114,9 @@ def install_responses(monkeypatch, responses):
         calls.append((path, kwargs))
         return next(iterator)
 
-    monkeypatch.setattr("lead_studio.integrations.hubspot._request_json", fake_request)
+    monkeypatch.setattr(
+        "leadgenerator.integrations.hubspot._request_json", fake_request
+    )
     return calls
 
 
@@ -305,7 +307,7 @@ def test_transport_rejects_http_207_multi_status(monkeypatch):
 
     monkeypatch.setenv("HUBSPOT_ACCESS_TOKEN", "secret")
     monkeypatch.setattr(
-        "lead_studio.integrations.hubspot.urlopen",
+        "leadgenerator.integrations.hubspot.urlopen",
         lambda *_args, **_kwargs: FakeResponse(),
     )
 

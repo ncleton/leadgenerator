@@ -9,14 +9,14 @@ if ! command -v uv >/dev/null 2>&1; then
     exit 1
 fi
 
-echo "Installation de Lead Studio dans $ROOT_DIR"
-uv sync --project plugins/lead-studio --frozen
-uv run --project plugins/lead-studio lead-studio-migrate-profiles
+echo "Installation de Lead Generator dans $ROOT_DIR"
+uv sync --project plugins/leadgenerator --frozen
+uv run --project plugins/leadgenerator leadgenerator-migrate-profiles
 
 if [[ "$(uname -s)" == "Linux" ]]; then
-    uv run --project plugins/lead-studio playwright install --with-deps chromium
+    uv run --project plugins/leadgenerator playwright install --with-deps chromium
 else
-    uv run --project plugins/lead-studio playwright install chromium
+    uv run --project plugins/leadgenerator playwright install chromium
 fi
 
 if ! command -v codex >/dev/null 2>&1; then
@@ -29,16 +29,18 @@ if ! "$CODEX_BIN" login status >/dev/null 2>&1; then
     "$CODEX_BIN" login --device-auth
 fi
 
-MARKETPLACE_NAME="lead-studio-local"
-PLUGIN_NAME="lead-studio@$MARKETPLACE_NAME"
+MARKETPLACE_NAME="leadgenerator-local"
+PLUGIN_NAME="leadgenerator@$MARKETPLACE_NAME"
 PLUGIN_VERSION="$(
-    uv run --project plugins/lead-studio --frozen python -c \
-        'import json; from pathlib import Path; print(json.loads(Path("plugins/lead-studio/.codex-plugin/plugin.json").read_text())["version"])'
+    uv run --project plugins/leadgenerator --frozen python -c \
+        'import json; from pathlib import Path; print(json.loads(Path("plugins/leadgenerator/.codex-plugin/plugin.json").read_text())["version"])'
 )"
 CODEX_HOME_DIR="${CODEX_HOME:-$HOME/.codex}"
-CACHE_ROOT="$CODEX_HOME_DIR/plugins/cache/$MARKETPLACE_NAME/lead-studio"
+CACHE_ROOT="$CODEX_HOME_DIR/plugins/cache/$MARKETPLACE_NAME/leadgenerator"
 INSTALLED_PLUGIN_ROOT="$CACHE_ROOT/$PLUGIN_VERSION"
-PREVIOUS_CACHE_VERSIONS=()
+# Seed the array for macOS Bash 3, where expanding an empty array under `set -u`
+# raises an unbound-variable error. The current version is ignored by the loop.
+PREVIOUS_CACHE_VERSIONS=("$PLUGIN_VERSION")
 if [[ -d "$CACHE_ROOT" ]]; then
     while IFS= read -r cached_path; do
         cached_version="$(basename "$cached_path")"
@@ -48,12 +50,12 @@ if [[ -d "$CACHE_ROOT" ]]; then
     done < <(find "$CACHE_ROOT" -mindepth 1 -maxdepth 1 \( -type d -o -type l \) -print)
 fi
 
-# Older installers copied the generic Lead Studio skills directly into
+# Older installers copied the generic Lead Generator skills directly into
 # ~/.codex/skills. Those copies shadow the plugin-owned skills and can keep stale
 # instructions alive after an upgrade. Archive only the generic duplicates; keep
 # offer-specific skills and the local user profile untouched.
 LEGACY_SKILLS=(
-    lead-studio
+    leadgenerator
     lead-company-search
     lead-company-research
     lead-company-visuals
@@ -66,7 +68,7 @@ for skill in "${LEGACY_SKILLS[@]}"; do
     skill_path="$HOME/.codex/skills/$skill"
     if [[ -d "$skill_path" ]]; then
         if [[ -z "$LEGACY_BACKUP" ]]; then
-            LEGACY_BACKUP="$HOME/.codex/lead-studio/legacy-skill-backups/$(date -u +%Y%m%dT%H%M%SZ)"
+            LEGACY_BACKUP="$HOME/.codex/leadgenerator/legacy-skill-backups/$(date -u +%Y%m%dT%H%M%SZ)"
             mkdir -p "$LEGACY_BACKUP"
         fi
         mv "$skill_path" "$LEGACY_BACKUP/$skill"
@@ -79,7 +81,7 @@ fi
 # Local marketplace installs copy the plugin into Codex's cache. A copied Python
 # virtual environment contains absolute links to its original location and is not
 # portable, so keep the development environment out of the installed snapshot.
-PLUGIN_VENV="$ROOT_DIR/plugins/lead-studio/.venv"
+PLUGIN_VENV="$ROOT_DIR/plugins/leadgenerator/.venv"
 VENV_STASH=""
 restore_plugin_venv() {
     if [[ -n "$VENV_STASH" && -d "$VENV_STASH" ]]; then
@@ -113,7 +115,7 @@ if [[ -d "$INSTALLED_PLUGIN_ROOT/.venv" && ! -x "$INSTALLED_PLUGIN_ROOT/.venv/bi
 fi
 uv sync --project "$INSTALLED_PLUGIN_ROOT" --frozen
 uv run --project "$INSTALLED_PLUGIN_ROOT" --frozen python -c \
-    'import lead_studio.mcp.server'
+    'import leadgenerator.mcp.server'
 
 # Keep paths referenced by already-open Codex tasks resolvable. Codex removes
 # older version directories during an upgrade, while existing tasks retain their
@@ -129,7 +131,8 @@ restore_plugin_venv
 trap - EXIT
 
 echo
-echo "Installation terminee. Le plugin Lead Studio et ses skills sont installes."
+echo "Installation terminee. Le plugin Lead Generator et ses skills sont installes."
 echo "Ouvre une nouvelle conversation Codex, puis demande :"
-echo "  Trouve-moi des prospects et affiche le parcours visuel Lead Studio."
-echo "  Ou : montre-moi 20 entreprises du code NAF 62.01Z."
+echo "  Trouve-moi des leads dans l'industrie."
+echo "Sans objectif configure, l'agent doit d'abord te demander ton offre et ta cible."
+echo "Apres creation de l'objectif, il lancera la recherche puis l'interface MCP."

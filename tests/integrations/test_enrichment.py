@@ -3,7 +3,7 @@
 # SYNTHETIC_TEST_DATA: all identities and contact details below are fictional.
 
 import pytest
-from lead_studio.integrations.enrichment import (
+from leadgenerator.integrations.enrichment import (
     ContactLookup,
     EnrichmentResult,
     confirm_fullenrich_fallback,
@@ -64,7 +64,7 @@ def test_enrow_submission_is_limited_to_requested_professional_field(monkeypatch
     calls = []
     monkeypatch.setenv("ENROW_API_KEY", "secret")
     monkeypatch.setattr(
-        "lead_studio.integrations.enrichment._request_json",
+        "leadgenerator.integrations.enrichment._request_json",
         lambda url, **kwargs: calls.append((url, kwargs))
         or {"id": "job-1", "credits_used": 1},
     )
@@ -94,7 +94,7 @@ def test_provider_submission_rejects_empty_job_ids(monkeypatch, provider):
     monkeypatch.setenv("ENROW_API_KEY", "secret")
     monkeypatch.setenv("FULLENRICH_API_KEY", "secret")
     monkeypatch.setattr(
-        "lead_studio.integrations.enrichment._request_json",
+        "leadgenerator.integrations.enrichment._request_json",
         lambda *_args, **_kwargs: {},
     )
     contact = sample_contact()
@@ -113,7 +113,7 @@ def test_fullenrich_requires_terminal_miss_and_fallback_confirmation(monkeypatch
     """FullEnrich cannot bypass the recorded Enrow-first cascade."""
     monkeypatch.setenv("FULLENRICH_API_KEY", "secret")
     monkeypatch.setattr(
-        "lead_studio.integrations.enrichment._request_json",
+        "leadgenerator.integrations.enrichment._request_json",
         lambda *_args, **_kwargs: {"enrichment_id": "full-1"},
     )
     contact = sample_contact()
@@ -147,7 +147,7 @@ def test_fullenrich_poll_normalizes_quality_employment_and_cost(monkeypatch):
     """The FullEnrich v2 result preserves contact quality and current employment."""
     monkeypatch.setenv("FULLENRICH_API_KEY", "secret")
     monkeypatch.setattr(
-        "lead_studio.integrations.enrichment._request_json",
+        "leadgenerator.integrations.enrichment._request_json",
         lambda *_args, **_kwargs: {
             "status": "FINISHED",
             "cost": {"credits": 11},
@@ -228,7 +228,7 @@ def test_enrow_field_status_mapping(monkeypatch, field, qualification, value, ex
     """Email and phone use their distinct documented terminal qualifications."""
     monkeypatch.setenv("ENROW_API_KEY", "secret")
     monkeypatch.setattr(
-        "lead_studio.integrations.enrichment._request_json",
+        "leadgenerator.integrations.enrichment._request_json",
         lambda *_args, **_kwargs: {"qualification": qualification, **value},
     )
 
@@ -251,7 +251,7 @@ def test_fullenrich_terminal_status_mapping(monkeypatch, provider_status, expect
     """Every documented provider status has a distinct normalized meaning."""
     monkeypatch.setenv("FULLENRICH_API_KEY", "secret")
     monkeypatch.setattr(
-        "lead_studio.integrations.enrichment._request_json",
+        "leadgenerator.integrations.enrichment._request_json",
         lambda *_args, **_kwargs: {"status": provider_status, "data": []},
     )
 

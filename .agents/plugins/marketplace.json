@@ -1,14 +1,14 @@
 {
-  "name": "lead-studio-local",
+  "name": "leadgenerator-local",
   "interface": {
-    "displayName": "Lead Studio Local"
+    "displayName": "Lead Generator Local"
   },
   "plugins": [
     {
-      "name": "lead-studio",
+      "name": "leadgenerator",
       "source": {
         "source": "local",
-        "path": "./plugins/lead-studio"
+        "path": "./plugins/leadgenerator"
       },
       "policy": {
         "installation": "AVAILABLE",
