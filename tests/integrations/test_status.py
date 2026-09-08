@@ -1,6 +1,6 @@
 """Tests for shareable per-user integration onboarding."""
 
-from lead_studio.integrations.status import check_integrations
+from leadgenerator.integrations.status import check_integrations
 
 
 def test_missing_integrations_explain_local_configuration(monkeypatch):
@@ -26,7 +26,7 @@ def test_network_failure_keeps_a_present_key_configured(monkeypatch):
     monkeypatch.delenv("FULLENRICH_API_KEY", raising=False)
     monkeypatch.delenv("HUBSPOT_ACCESS_TOKEN", raising=False)
     monkeypatch.setattr(
-        "lead_studio.integrations.status._verify",
+        "leadgenerator.integrations.status._verify",
         lambda _service, _token, _timeout: ("configured", "Réseau indisponible."),
     )
 

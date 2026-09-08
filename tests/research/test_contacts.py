@@ -3,8 +3,8 @@
 from datetime import date
 
 import pytest
-from lead_studio.research.company_research import CompanyIdentity, PublicEvidence
-from lead_studio.research.contacts import (
+from leadgenerator.research.company_research import CompanyIdentity, PublicEvidence
+from leadgenerator.research.contacts import (
     ObjectiveRoleCriteria,
     PublicContactCandidate,
     assess_contact_candidate,

@@ -17,6 +17,6 @@ jobs:
         with:
           python-version: "3.13"
           enable-cache: true
-      - run: uv sync --project plugins/lead-studio --frozen
-      - run: uv run --project plugins/lead-studio playwright install --with-deps chromium
+      - run: uv sync --project plugins/leadgenerator --frozen
+      - run: uv run --project plugins/leadgenerator playwright install --with-deps chromium
       - run: ./scripts/validate.sh

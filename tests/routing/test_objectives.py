@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from lead_studio.profiles.objectives import ObjectiveExample, ObjectiveStore
+from leadgenerator.profiles.objectives import ObjectiveExample, ObjectiveStore
 
 
 def _create_two_objectives(tmp_path: Path) -> ObjectiveStore:

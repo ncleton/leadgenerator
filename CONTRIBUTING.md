@@ -7,7 +7,7 @@ Before opening a pull request, run the canonical validation command documented i
 `AGENTS.md`.
 Do not commit secrets, profiles, scraped datasets, exports, browser state, caches,
 or generated coverage files. Update dependencies with
-`uv lock --project plugins/lead-studio`; never edit the lockfile manually.
+`uv lock --project plugins/leadgenerator`; never edit the lockfile manually.
 
 Changes to paid enrichment, personal data, or CRM writes must preserve explicit
 human confirmation at the exact point of action and include focused tests.

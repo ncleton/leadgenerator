@@ -2,13 +2,13 @@
 
 from pathlib import Path
 
-from lead_studio.profiles.preferences import (
-    LeadStudioPreferences,
+from leadgenerator.profiles.preferences import (
+    LeadGeneratorPreferences,
     load_preferences,
     preferences_path,
     set_interface_mode,
 )
-from lead_studio.profiles.user import (
+from leadgenerator.profiles.user import (
     build_user_profile,
     load_user_profile,
     save_user_profile,
@@ -40,7 +40,7 @@ def test_interface_mode_defaults_to_chat_ui_without_creating_a_file(tmp_path: Pa
     """Existing installations keep the visual experience until it is changed."""
     preferences = load_preferences(tmp_path)
 
-    assert preferences == LeadStudioPreferences(interface_mode="chat_ui")
+    assert preferences == LeadGeneratorPreferences(interface_mode="chat_ui")
     assert preferences.interface_enabled is True
     assert not preferences_path(tmp_path).exists()
 

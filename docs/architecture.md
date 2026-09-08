@@ -11,6 +11,7 @@ Skill Lead Generator ──► outils MCP ──► modules Python spécialisés
         │                 │
         │                 ├── objectifs + agents 1:1
         │                 ├── routage + contexte documentaire
+        │                 ├── mémoire PostgreSQL des entreprises
         │                 ├── recherche publique
         │                 ├── profils locaux
         │                 ├── intégrations confirmées
@@ -29,7 +30,7 @@ Les skills indiquent quand utiliser les outils et comment séparer faits, preuve
 hypothèses et informations manquantes. Ils ne contiennent ni logique métier
 exécutable ni secret.
 
-Le serveur `lead_studio.mcp.server` constitue la frontière d'action. Il valide les
+Le serveur `leadgenerator.mcp.server` constitue la frontière d'action. Il valide les
 URL publiques, déclare les effets des outils et exige un booléen de confirmation
 pour toute dépense ou écriture CRM.
 
@@ -45,7 +46,7 @@ une question de clarification et aucune recherche n'est lancée.
 
 Le profil vendeur, les profils d'offre historiques, les objectifs, leurs agents,
 leurs notes et documents, et la préférence de présentation sont
-conservés exclusivement dans `~/.codex/lead-studio/`, avec des permissions locales
+conservés exclusivement dans `~/.codex/leadgenerator/`, avec des permissions locales
 restrictives. Les pièces jointes sont copiées, hachées SHA-256, rattachées à un
 seul objectif et leur texte est explicitement marqué comme non fiable.
 `preferences.json` choisit `chat_ui` ou `text_only`. Dans ce dernier
@@ -56,6 +57,20 @@ identité, une entreprise, un site, une offre ou les critères d'un client. Les
 identifiants Enrow, FullEnrich et HubSpot proviennent uniquement de variables
 d'environnement. Le dépôt ignore les profils, exports, environnements Python,
 caches et rapports de couverture.
+
+Les fiches d'entreprise et de contact sont conservées hors du dépôt dans une
+base PostgreSQL locale. La table `leadgenerator_private.companies` utilise le SIREN
+comme identité prioritaire, puis le domaine officiel et enfin une empreinte de
+secours. Elle conserve la fiche `LeadViewItem` complète en JSONB, les objectifs
+associés, les dates de première et dernière observation, le nombre de recherches
+et le dernier contexte de recherche. Une nouvelle recherche inscrit tous les
+résultats mais ne présente par défaut que les identités inconnues. Les rendus de
+l'explorateur et du workspace actualisent la fiche avec le site officiel, les
+faits et sources, les visuels, contacts, actualités, signaux et enrichissements.
+La table `leadgenerator_private.company_snapshots` ajoute une version immuable à
+chaque écriture. L'outil `export_company_memory` matérialise une vue lisible sous
+`.agent-private/leadgenerator/database` avec un index, la fiche courante et tout
+l'historique JSONL. Cette vue est un miroir privé ; PostgreSQL reste autoritaire.
 
 ## Dépendances ciblées
 

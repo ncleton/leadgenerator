@@ -3,7 +3,7 @@
 from datetime import date
 
 import pytest
-from lead_studio.research.company_research import (
+from leadgenerator.research.company_research import (
     CompanyFact,
     CompanyIdentity,
     LeadershipCandidate,

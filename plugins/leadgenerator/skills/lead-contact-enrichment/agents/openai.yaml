@@ -1,0 +1,12 @@
+interface:
+  display_name: "Enrichissement de contacts"
+  short_description: "Cascade Enrow puis FullEnrich sous confirmation"
+  default_prompt: "Utilise $lead-contact-enrichment pour trouver l'email professionnel de ce contact après ma validation."
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "leadgenerator"
+      description: "Outils locaux de recherche et de revue Lead Generator"
+      transport: "stdio"
+policy:
+  allow_implicit_invocation: true

@@ -1,0 +1,61 @@
+[project]
+name = "leadgenerator-agent"
+version = "0.4.0"
+description = "Human-reviewed B2B research plugin for ChatGPT and Codex."
+requires-python = ">=3.13,<4.0"
+license = { text = "MIT" }
+authors = [{ name = "Yaka Performance" }]
+dependencies = [
+    "beautifulsoup4>=4.14.3",
+    "html2text>=2025.4.15",
+    "mcp>=2.2.0,<3.0.0",
+    "playwright>=1.57.0",
+    "psycopg[binary]>=3.2.0,<4.0.0",
+    "pypdf>=6.0.0,<7.0.0",
+    "pydantic>=2.12.5",
+    "undetected-playwright>=0.3.0",
+]
+
+[project.scripts]
+leadgenerator-mcp = "leadgenerator.mcp.server:main"
+leadgenerator-migrate-profiles = "leadgenerator.profiles.migration:main"
+
+[dependency-groups]
+dev = [
+    "black>=24.2.0",
+    "pytest>=8.0.0",
+    "pytest-cov>=4.1.0",
+    "ruff>=0.14.0",
+]
+
+[build-system]
+requires = ["hatchling>=1.26.3"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/leadgenerator"]
+
+[tool.black]
+line-length = 88
+target-version = ["py313"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "C"]
+ignore = ["E203", "E501", "C901"]
+
+[tool.pytest.ini_options]
+addopts = ["-q", "--strict-markers", "--strict-config"]
+testpaths = ["../../tests"]
+norecursedirs = [".git", ".venv", "__pycache__"]
+
+[tool.coverage.run]
+source = ["leadgenerator"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+precision = 2

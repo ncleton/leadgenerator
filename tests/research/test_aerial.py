@@ -1,7 +1,7 @@
 from urllib.parse import parse_qs, urlparse
 
 import pytest
-from lead_studio.research.aerial import build_ign_aerial_image_url
+from leadgenerator.research.aerial import build_ign_aerial_image_url
 
 
 def test_ign_aerial_url_is_centered_on_company_coordinates():

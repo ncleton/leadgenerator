@@ -4,7 +4,7 @@
 
 from datetime import date
 
-from lead_studio.research.visuals import (
+from leadgenerator.research.visuals import (
     extract_person_profile_images,
     extract_visual_candidates,
 )
