@@ -41,6 +41,17 @@ contrat de sortie. Avant une recherche, le routeur choisit dans l'ordre une port
 explicite, la sélection persistante de la conversation, l'unique objectif actif,
 puis une correspondance sémantique déterministe. Une égalité plausible produit
 une question de clarification et aucune recherche n'est lancée.
+L'objectif unique est sélectionné sans question tant que la demande respecte ses
+critères. Un élargissement ou déplacement géographique explicite produit au
+contraire une explication du conflit et propose de créer un nouvel objectif.
+
+Une demande générique sans correspondance demande ce que l'utilisateur vend au
+lieu d'exposer les noms d'objectifs internes sans rapport. Une nouvelle offre
+explicite déclenche la création directe de son objectif. Lors de l'onboarding, le
+site vendeur est enregistré puis effectivement lu : la synthèse de l'offre, les
+pages sources et la date d'analyse sont conservées dans le profil privé. Tant que
+cette preuve d'analyse manque, le skill interdit de définir des filtres ou de
+lancer une recherche d'entreprises.
 
 ## État et données
 

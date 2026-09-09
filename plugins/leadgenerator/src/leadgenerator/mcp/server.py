@@ -53,7 +53,9 @@ from leadgenerator.profiles.preferences import (
 from leadgenerator.profiles.user import (
     build_user_profile,
     load_user_profile,
+    record_website_analysis,
     save_user_profile,
+    website_host,
 )
 from leadgenerator.research.browser import collect_html, html_to_markdown
 from leadgenerator.research.company_research import (
@@ -210,7 +212,14 @@ optional reviewable UI, and controlled enrichment and CRM actions for Lead Gener
 Begin every lead request with get_lead_interface_mode and resolve_lead_objective,
 before any search, browsing, or public research. Research is forbidden unless
 resolve_lead_objective returns research_authorized=true. When it is false, ask
-the returned clarification_prompt and stop. Keep each lead, note, document, and
+the returned clarification_prompt and stop, except when next_action=create_objective:
+create the new objective directly from the user's stated offer without listing
+unrelated existing objectives. Once an objective is selected, call
+get_lead_user_profile. If the seller website is missing, ask for it. If
+website_analysis_required=true, scrape the user-approved homepage and relevant
+offer pages, then call record_lead_website_analysis before defining a lead target
+or starting company search. Never replace this evidence with generic targeting
+assumptions. Keep each lead, note, document, and
 follow-up scoped to exactly one objective. In chat_ui mode, every multi-company
 search is incomplete until render_lead_explorer succeeds in the current turn;
 never claim that an explorer or workspace was displayed without the corresponding
@@ -697,8 +706,9 @@ async def set_lead_interface_mode(
     name="get_lead_user_profile",
     title="Lire le profil vendeur local",
     description=(
-        "Read the local seller identity reused by Lead Generator. Returns no secret "
-        "and does not access an external service."
+        "Read the local seller identity, website, and website-analysis state reused "
+        "by Lead Generator. When website_analysis_required is true, the approved "
+        "site must be scraped and recorded before lead targeting or search."
     ),
     annotations=ToolAnnotations(
         readOnlyHint=True,
@@ -714,6 +724,18 @@ def get_lead_user_profile() -> dict[str, object]:
     return {
         "configured": profile is not None,
         "profile": profile.model_dump(mode="json") if profile else None,
+        "website_configured": bool(profile and profile.seller_website_url),
+        "website_analysis_required": not bool(
+            profile and profile.seller_website_url and profile.website_analysis
+        ),
+        "clarification_prompt": (
+            None
+            if profile and profile.seller_website_url
+            else (
+                "Quel est le site Internet de votre entreprise ? Je vais d'abord "
+                "analyser votre offre, puis chercher les entreprises pertinentes."
+            )
+        ),
     }
 
 
@@ -721,8 +743,9 @@ def get_lead_user_profile() -> dict[str, object]:
     name="save_lead_user_profile",
     title="Enregistrer le profil vendeur local",
     description=(
-        "Validate and store the seller name, company, and optional public website "
-        "on the current machine. Never accepts credentials."
+        "Validate and store the seller's public website and any known identity "
+        "details on the current machine. The website may be saved before the name "
+        "or company. Changing it clears the prior website analysis."
     ),
     annotations=ToolAnnotations(
         readOnlyHint=False,
@@ -733,18 +756,94 @@ def get_lead_user_profile() -> dict[str, object]:
     structured_output=True,
 )
 def save_lead_user_profile(
-    seller_name: str,
-    seller_company: str,
+    seller_name: str = "",
+    seller_company: str = "",
     seller_website_url: str = "",
 ) -> dict[str, object]:
-    """Persist normalized seller defaults outside the shared plugin."""
+    """Merge normalized seller defaults outside the shared plugin."""
+    existing = load_user_profile()
+    requested_website = seller_website_url.strip()
+    previous_website = existing.seller_website_url if existing else None
     profile = build_user_profile(
-        seller_name=seller_name,
-        seller_company=seller_company,
-        seller_website_url=seller_website_url,
+        seller_name=seller_name or (existing.seller_name if existing else None),
+        seller_company=seller_company
+        or (existing.seller_company if existing else None),
+        seller_website_url=requested_website or previous_website,
+        website_analysis=existing.website_analysis if existing else None,
     )
+    if (
+        existing
+        and requested_website
+        and previous_website
+        and website_host(profile.seller_website_url or "")
+        != website_host(previous_website)
+    ):
+        profile = profile.model_copy(update={"website_analysis": None})
     path = save_user_profile(profile)
-    return {"profile": profile.model_dump(mode="json"), "local_path": str(path)}
+    return {
+        "profile": profile.model_dump(mode="json"),
+        "local_path": str(path),
+        "website_analysis_required": not bool(profile.website_analysis),
+        "next_action": (
+            "scrape_seller_website"
+            if profile.seller_website_url and not profile.website_analysis
+            else "profile_ready"
+        ),
+    }
+
+
+@server.tool(
+    name="record_lead_website_analysis",
+    title="Enregistrer l'analyse du site vendeur",
+    description=(
+        "Record the evidence-backed offer summary after scrape_public_page has "
+        "successfully read the seller homepage and relevant offer pages. All source "
+        "URLs must belong to the saved seller domain. Call this before choosing "
+        "lead filters or searching companies."
+    ),
+    annotations=ToolAnnotations(
+        readOnlyHint=False,
+        destructiveHint=False,
+        idempotentHint=False,
+        openWorldHint=False,
+    ),
+    structured_output=True,
+)
+def record_lead_website_analysis(
+    offer_summary: str,
+    source_urls: list[str],
+) -> dict[str, object]:
+    """Persist proof that the seller website informed the active offer."""
+    profile = load_user_profile()
+    if not profile:
+        raise ValueError("Enregistrez d'abord le profil vendeur et son site Internet.")
+    updated = record_website_analysis(
+        profile,
+        offer_summary=offer_summary,
+        source_urls=source_urls,
+    )
+    path = save_user_profile(updated)
+    return {
+        "profile": updated.model_dump(mode="json"),
+        "local_path": str(path),
+        "website_analysis_required": False,
+        "next_action": "refine_objective_from_website_evidence",
+    }
+
+
+def _require_seller_website_analysis() -> None:
+    """Block company sourcing until the seller offer has sourced web context."""
+    profile = load_user_profile()
+    if not profile or not profile.seller_website_url:
+        raise ToolError(
+            "Le site Internet du vendeur doit être enregistré avant la recherche."
+        )
+    if not profile.website_analysis:
+        raise ToolError(
+            "Le site vendeur est enregistré mais n'a pas encore été analysé. "
+            "Lisez ses pages publiques puis appelez record_lead_website_analysis "
+            "avant toute recherche d'entreprises."
+        )
 
 
 @server.tool(
@@ -976,7 +1075,9 @@ def update_lead_objective(
         "Route a lead request to an explicit, sticky, unique, or semantic objective. "
         "Call this after get_lead_interface_mode and before every search or public "
         "research. Research may start only when research_authorized is true. "
-        "Unconfigured or ambiguous requests return the exact clarification to ask."
+        "Unconfigured or ambiguous requests return the exact clarification to ask. "
+        "A clearly stated new offer returns next_action=create_objective instead of "
+        "exposing unrelated objective names."
     ),
     annotations=ToolAnnotations(
         readOnlyHint=False,
@@ -1005,9 +1106,13 @@ def resolve_lead_objective(
             "activate_objective"
             if decision.status == "selected"
             else (
-                "ask_clarification"
-                if decision.clarification_prompt
-                else "return_to_general_assistant"
+                "create_objective"
+                if decision.status == "new_objective"
+                else (
+                    "ask_clarification"
+                    if decision.clarification_prompt
+                    else "return_to_general_assistant"
+                )
             )
         ),
     }
@@ -1341,8 +1446,9 @@ def sync_hubspot_contacts(
     title="Trouver des entreprises françaises",
     description=(
         "CALL THIS TOOL only after resolve_lead_objective returned "
-        "research_authorized=true, whenever the user asks to find, list, show, source, or "
-        "discover French companies, leads, or prospects using several criteria "
+        "research_authorized=true and record_lead_website_analysis completed, "
+        "whenever the user asks to find, list, show, source, or discover French "
+        "companies, leads, or prospects using several criteria "
         "such as NAF codes, geography, category, or employee bands. It returns "
         "official public-register facts and direct source links in either "
         "presentation mode. Every returned identity is remembered in private local "
@@ -1376,6 +1482,7 @@ def search_french_companies(
     include_previously_seen: bool = False,
 ) -> dict[str, object]:
     """Return public legal facts inside the interactive Lead Generator contract."""
+    _require_seller_website_analysis()
     search = CompanySearchRequest(
         query=query,
         naf_codes=naf_codes or [],
@@ -1525,8 +1632,9 @@ def _company_record_to_lead(company: dict[str, object]) -> LeadViewItem | None:
     title="Rechercher des entreprises par code NAF",
     description=(
         "CALL THIS TOOL only after resolve_lead_objective returned "
-        "research_authorized=true, for every request to find, list, show, source, or discover "
-        "companies, leads, or prospects from one explicit French NAF/APE code. "
+        "research_authorized=true and record_lead_website_analysis completed, for "
+        "every request to find, list, show, source, or discover companies, leads, "
+        "or prospects from one explicit French NAF/APE code. "
         "This is the preferred single-NAF search tool and returns sourced public "
         "records in either presentation mode. Do not use search_french_companies "
         "for this case. Only call a render tool when chat_ui is enabled. Company "
@@ -1551,6 +1659,7 @@ def search_companies_by_naf(
     include_previously_seen: bool = False,
 ) -> dict[str, object]:
     """Return active company records and open them in the NAF selection view."""
+    _require_seller_website_analysis()
     payload = search_public_companies_by_naf(
         naf_code,
         department=department,

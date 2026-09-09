@@ -20,8 +20,11 @@ from mcp.client.stdio import stdio_client
 REQUIRED_TOOLS = {
     "create_lead_objective",
     "get_lead_interface_mode",
+    "record_lead_website_analysis",
     "render_lead_explorer",
     "resolve_lead_objective",
+    "save_lead_user_profile",
+    "scrape_public_page",
     "search_french_companies",
 }
 TEST_OBJECTIVE_ID = "installation-mcp-smoke-test"
@@ -157,6 +160,49 @@ async def verify(plugin_root: Path) -> dict[str, Any]:
             if not resolution.get("research_authorized"):
                 raise RuntimeError(
                     "résolution objectif: la recherche n'a pas été autorisée."
+                )
+
+            profile = structured(
+                await session.call_tool(
+                    "save_lead_user_profile",
+                    {
+                        "seller_company": "Example test fixture",
+                        "seller_website_url": "https://example.com",
+                    },
+                ),
+                stage="profil vendeur isolé",
+            )
+            if profile.get("next_action") != "scrape_seller_website":
+                raise RuntimeError(
+                    "profil vendeur isolé: l'analyse du site n'a pas été exigée."
+                )
+            seller_page = structured(
+                await session.call_tool(
+                    "scrape_public_page",
+                    {"url": "https://example.com"},
+                ),
+                stage="lecture site vendeur isolé",
+            )
+            if not seller_page.get("content"):
+                raise RuntimeError(
+                    "lecture site vendeur isolé: aucun contenu public n'a été lu."
+                )
+            website_analysis = structured(
+                await session.call_tool(
+                    "record_lead_website_analysis",
+                    {
+                        "offer_summary": (
+                            "Page publique technique utilisée uniquement pour valider "
+                            "le verrou d'analyse avant recherche."
+                        ),
+                        "source_urls": [seller_page["source_url"]],
+                    },
+                ),
+                stage="preuve analyse site vendeur",
+            )
+            if website_analysis.get("website_analysis_required") is not False:
+                raise RuntimeError(
+                    "preuve analyse site vendeur: l'analyse n'a pas été conservée."
                 )
 
             search = structured(

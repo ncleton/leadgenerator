@@ -11,6 +11,7 @@ from leadgenerator.profiles.preferences import (
 from leadgenerator.profiles.user import (
     build_user_profile,
     load_user_profile,
+    record_website_analysis,
     save_user_profile,
     user_profile_path,
 )
@@ -34,6 +35,37 @@ def test_user_profile_is_saved_outside_shareable_agent(tmp_path: Path):
 def test_missing_user_profile_is_an_unconfigured_local_install(tmp_path: Path):
     """A shared installation starts without another user's seller identity."""
     assert load_user_profile(tmp_path) is None
+
+
+def test_user_profile_can_start_with_the_public_website_only(tmp_path: Path):
+    """Website-first onboarding must not require identity fields up front."""
+    profile = build_user_profile(seller_website_url="example.com")
+
+    save_user_profile(profile, tmp_path)
+
+    assert load_user_profile(tmp_path) == profile
+    assert profile.seller_website_url == "https://example.com"
+    assert profile.seller_name is None
+    assert profile.seller_company is None
+
+
+def test_website_analysis_is_sourced_from_the_saved_seller_domain(tmp_path: Path):
+    profile = build_user_profile(seller_website_url="https://www.example.com")
+
+    analyzed = record_website_analysis(
+        profile,
+        offer_summary="L'entreprise présente une solution de recharge B2B.",
+        source_urls=[
+            "https://example.com/",
+            "https://www.example.com/solutions/recharge",
+        ],
+    )
+    save_user_profile(analyzed, tmp_path)
+
+    loaded = load_user_profile(tmp_path)
+    assert loaded is not None
+    assert loaded.website_analysis is not None
+    assert len(loaded.website_analysis.source_urls) == 2
 
 
 def test_interface_mode_defaults_to_chat_ui_without_creating_a_file(tmp_path: Path):

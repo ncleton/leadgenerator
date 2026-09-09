@@ -4,36 +4,107 @@ from __future__ import annotations
 
 import json
 import os
+from datetime import UTC, datetime
 from pathlib import Path
+from urllib.parse import urlparse
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 USER_PROFILE_HOME = Path.home() / ".codex" / "leadgenerator"
 USER_PROFILE_FILENAME = "user-profile.json"
 
 
-class UserProfile(BaseModel):
-    """Seller identity reused across offer profiles on one user's machine."""
+class SellerWebsiteAnalysis(BaseModel):
+    """Persisted proof that the seller's public offer pages were reviewed."""
 
     model_config = ConfigDict(extra="forbid")
 
-    seller_name: str = Field(min_length=1)
-    seller_company: str = Field(min_length=1)
+    offer_summary: str = Field(min_length=1, max_length=5000)
+    source_urls: list[str] = Field(min_length=1, max_length=10)
+    analyzed_at: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
+
+
+class UserProfile(BaseModel):
+    """Seller identity and reviewed website context on one user's machine."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    seller_name: str | None = None
+    seller_company: str | None = None
     seller_website_url: str | None = None
+    website_analysis: SellerWebsiteAnalysis | None = None
+
+    @field_validator("seller_website_url")
+    @classmethod
+    def _normalize_website(cls, value: str | None) -> str | None:
+        if not value:
+            return None
+        normalized = value.strip()
+        if "://" not in normalized:
+            normalized = f"https://{normalized}"
+        parsed = urlparse(normalized)
+        if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+            raise ValueError("Le site doit être une URL HTTP(S) valide.")
+        if parsed.username or parsed.password:
+            raise ValueError("Les identifiants intégrés dans l'URL sont refusés.")
+        return normalized
+
+    @model_validator(mode="after")
+    def _valid_profile(self) -> "UserProfile":
+        if not any((self.seller_name, self.seller_company, self.seller_website_url)):
+            raise ValueError(
+                "Le profil vendeur doit contenir au moins une information."
+            )
+        if self.website_analysis and not self.seller_website_url:
+            raise ValueError("Une analyse de site requiert un site vendeur.")
+        return self
 
 
 def build_user_profile(
     *,
-    seller_name: str,
-    seller_company: str,
+    seller_name: str | None = None,
+    seller_company: str | None = None,
     seller_website_url: str | None = None,
+    website_analysis: SellerWebsiteAnalysis | None = None,
 ) -> UserProfile:
     """Normalize a user profile before storing it locally."""
     return UserProfile(
-        seller_name=seller_name.strip(),
-        seller_company=seller_company.strip(),
+        seller_name=(seller_name or "").strip() or None,
+        seller_company=(seller_company or "").strip() or None,
         seller_website_url=(seller_website_url or "").strip() or None,
+        website_analysis=website_analysis,
     )
+
+
+def website_host(value: str) -> str:
+    """Return a canonical host for seller-site evidence comparisons."""
+    return (urlparse(value).hostname or "").lower().removeprefix("www.")
+
+
+def record_website_analysis(
+    profile: UserProfile,
+    *,
+    offer_summary: str,
+    source_urls: list[str],
+) -> UserProfile:
+    """Attach a sourced offer summary only when every page matches the seller site."""
+    if not profile.seller_website_url:
+        raise ValueError("Enregistrez d'abord le site Internet du vendeur.")
+    seller_host = website_host(profile.seller_website_url)
+    normalized_sources: list[str] = []
+    for source_url in source_urls:
+        normalized = UserProfile._normalize_website(source_url)
+        if not normalized or website_host(normalized) != seller_host:
+            raise ValueError(
+                "Chaque source d'analyse doit appartenir au site Internet du vendeur."
+            )
+        if normalized not in normalized_sources:
+            normalized_sources.append(normalized)
+    analysis = SellerWebsiteAnalysis(
+        offer_summary=offer_summary.strip(),
+        source_urls=normalized_sources,
+    )
+    return profile.model_copy(update={"website_analysis": analysis})
 
 
 def user_profile_path(profile_home: Path = USER_PROFILE_HOME) -> Path:

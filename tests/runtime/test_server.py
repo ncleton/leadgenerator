@@ -13,9 +13,11 @@ from leadgenerator.mcp.server import (
     get_lead_interface_mode,
     inspect_official_visuals,
     lead_explorer_ui,
+    record_lead_website_analysis,
     render_lead_explorer,
     render_lead_workspace,
     resolve_lead_objective,
+    save_lead_user_profile,
     scrape_public_page,
     search_companies_by_naf,
     search_french_companies,
@@ -98,6 +100,16 @@ def default_chat_ui_mode(monkeypatch: pytest.MonkeyPatch):
         "leadgenerator.mcp.server.load_preferences",
         lambda: LeadGeneratorPreferences(interface_mode="chat_ui"),
     )
+    monkeypatch.setattr(
+        "leadgenerator.mcp.server.load_user_profile",
+        lambda: SimpleNamespace(
+            seller_name="Camille Martin",
+            seller_company="Example Conseil",
+            seller_website_url="https://example.com",
+            website_analysis=SimpleNamespace(),
+            model_dump=lambda **_kwargs: {},
+        ),
+    )
     monkeypatch.setattr("leadgenerator.mcp.server.company_memory", MemoryStub())
 
 
@@ -137,6 +149,52 @@ def test_mcp_tool_uses_user_selected_browser_mode(monkeypatch: pytest.MonkeyPatc
 
     assert result["browser_mode"] == "visible"
     assert calls == {"url": "https://example.com", "headless": False}
+
+
+def test_company_search_is_blocked_until_saved_website_was_analyzed(monkeypatch):
+    """Saving a URL alone must never unlock generic targeting assumptions."""
+    monkeypatch.setattr(
+        "leadgenerator.mcp.server.load_user_profile",
+        lambda: SimpleNamespace(
+            seller_website_url="https://example.com",
+            website_analysis=None,
+        ),
+    )
+
+    with pytest.raises(ToolError, match="pas encore été analysé"):
+        search_french_companies(query="industrie")
+
+    with pytest.raises(ToolError, match="pas encore été analysé"):
+        search_companies_by_naf("25.62B")
+
+
+def test_profile_flow_records_sourced_offer_analysis(monkeypatch, tmp_path):
+    """The MCP profile state stays blocked until a same-domain summary is stored."""
+    state = {"profile": None}
+
+    def fake_save(profile):
+        state["profile"] = profile
+        return tmp_path / "user-profile.json"
+
+    monkeypatch.setattr(
+        "leadgenerator.mcp.server.load_user_profile", lambda: state["profile"]
+    )
+    monkeypatch.setattr("leadgenerator.mcp.server.save_user_profile", fake_save)
+
+    saved = save_lead_user_profile(
+        seller_name="Camille Martin",
+        seller_company="Example Conseil",
+        seller_website_url="example.com",
+    )
+    recorded = record_lead_website_analysis(
+        offer_summary="Le site présente une offre B2B.",
+        source_urls=["https://example.com/", "https://example.com/offre"],
+    )
+
+    assert saved["next_action"] == "scrape_seller_website"
+    assert saved["website_analysis_required"] is True
+    assert recorded["next_action"] == "refine_objective_from_website_evidence"
+    assert recorded["website_analysis_required"] is False
 
 
 def test_visual_tool_keeps_same_company_scope(monkeypatch: pytest.MonkeyPatch):
@@ -408,6 +466,7 @@ def test_server_instructions_require_objective_gate_and_real_ui_render():
     """The model cannot research first or merely claim that it rendered the app."""
     assert "before any search, browsing, or public research" in SERVER_INSTRUCTIONS
     assert "research_authorized=true" in SERVER_INSTRUCTIONS
+    assert "record_lead_website_analysis" in SERVER_INSTRUCTIONS
     assert "render_lead_explorer succeeds" in SERVER_INSTRUCTIONS
     assert "never claim that an explorer or workspace was displayed" in (
         SERVER_INSTRUCTIONS
@@ -425,7 +484,49 @@ def test_resolver_blocks_research_and_returns_the_objective_example(
 
     assert result["research_authorized"] is False
     assert result["next_action"] == "ask_clarification"
-    assert "Exemple" in result["decision"]["clarification_prompt"]
+    assert "bornes de recharge" in result["decision"]["clarification_prompt"]
+
+
+def test_resolver_turns_a_plain_offer_answer_into_a_new_objective_action(
+    monkeypatch, tmp_path
+):
+    """A new offer bypasses confusing menus of unrelated saved objectives."""
+    store = ObjectiveStore(tmp_path / "objectives")
+    store.create(
+        objective_id="validation-industrie",
+        name="Validation industrie Lille",
+        description="Ancien objectif de validation",
+        instructions="Conserver les preuves publiques.",
+    )
+    monkeypatch.setattr("leadgenerator.mcp.server.ObjectiveStore", lambda: store)
+
+    result = resolve_lead_objective("Je veux vendre des bornes de recharge")
+
+    assert result["research_authorized"] is False
+    assert result["next_action"] == "create_objective"
+    assert result["decision"]["candidates"] == []
+    assert result["decision"]["clarification_prompt"] is None
+
+
+def test_resolver_explains_a_single_objective_geography_conflict(monkeypatch, tmp_path):
+    """A sole objective is automatic unless the request explicitly changes scope."""
+    store = ObjectiveStore(tmp_path / "objectives")
+    store.create(
+        objective_id="industrie-lille",
+        name="Industrie Lille",
+        description="Prospecter les industriels lillois",
+        instructions="Conserver les preuves publiques.",
+        geography="Lille",
+    )
+    monkeypatch.setattr("leadgenerator.mcp.server.ObjectiveStore", lambda: store)
+
+    result = resolve_lead_objective("Trouve des industriels partout en France")
+
+    assert result["research_authorized"] is False
+    assert result["next_action"] == "ask_clarification"
+    assert result["decision"]["status"] == "objective_conflict"
+    assert "ne correspond pas" in result["decision"]["clarification_prompt"]
+    assert "créer un nouvel objectif" in result["decision"]["clarification_prompt"]
 
 
 def test_search_result_cannot_be_rendered_as_a_second_explorer(monkeypatch):
@@ -465,6 +566,7 @@ def test_server_exposes_profiles_and_confirmed_action_boundaries():
     for name in (
         "get_lead_user_profile",
         "save_lead_user_profile",
+        "record_lead_website_analysis",
         "get_lead_interface_mode",
         "set_lead_interface_mode",
         "list_lead_offer_profiles",

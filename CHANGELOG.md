@@ -7,6 +7,13 @@ All notable changes to Lead Generator are documented here. The project follows
 
 ### Fixed
 
+- Replace unrelated objective menus with a concise offer question, create a new
+  objective directly from a clear selling intent, and let an explicit new-objective
+  request override a stale conversation selection.
+- Select a sole compatible objective without prompting, while explaining explicit
+  geography conflicts and offering to create a separate objective.
+- Require the seller website to be scraped and its sourced offer summary persisted
+  before company search tools accept targeting filters.
 - Block lead sourcing until a persistent commercial objective is selected, and
   return a concrete setup example when none exists.
 - Require the actual MCP Apps explorer render in `chat_ui` mode and prohibit

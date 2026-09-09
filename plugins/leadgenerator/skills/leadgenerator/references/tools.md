@@ -13,6 +13,10 @@ chaque outil.
 - `get_lead_user_profile` et `list_lead_offer_profiles` lisent les profils locaux.
 - `save_lead_user_profile` et `save_lead_offer_profile` écrivent uniquement dans
   `~/.codex/leadgenerator/`, après confirmation des valeurs par l'utilisateur.
+- Une URL vendeur nouvellement enregistrée laisse
+  `website_analysis_required: true`. Lire réellement sa page d'accueil et ses
+  pages d'offre avec `scrape_public_page`, puis appeler
+  `record_lead_website_analysis` avec la synthèse et les URL sources.
 - Aucun profil vendeur ou client ne doit être recopié dans un skill, un guide ou
   un autre artefact partageable. Les guides distribués restent génériques.
 - `check_lead_integrations` indique quels services sont configurés sans révéler
@@ -30,8 +34,9 @@ chaque outil.
 - `search_companies_by_naf` recherche un code NAF exact, mémorise les identités
   retournées et exclut par défaut celles déjà vues.
 - `search_french_companies` combine plusieurs critères publics avec la même
-  mémoire et la même déduplication.
-- `inspect_public_page` et `inspect_official_visuals` ne travaillent que sur des
+  mémoire et la même déduplication. Les deux outils de recherche refusent de
+  démarrer tant que l'analyse du site vendeur n'est pas enregistrée.
+- `scrape_public_page` et `inspect_official_visuals` ne travaillent que sur des
   URL publiques autorisées.
 - `render_lead_explorer` et `render_lead_workspace` rendent les vues interactives
   uniquement lorsque `get_lead_interface_mode` retourne `chat_ui`, puis mettent
