@@ -71,6 +71,7 @@ async def verify(plugin_root: Path) -> dict[str, Any]:
     if uv_command is None:
         raise RuntimeError("démarrage: la commande uv est introuvable.")
 
+    original_home = Path.home()
     with tempfile.TemporaryDirectory(
         prefix="leadgenerator-install-check-"
     ) as temp_home:
@@ -78,6 +79,22 @@ async def verify(plugin_root: Path) -> dict[str, Any]:
         child_env["HOME"] = temp_home
         if os.name == "nt":
             child_env["USERPROFILE"] = temp_home
+        if "PLAYWRIGHT_BROWSERS_PATH" not in child_env:
+            if sys.platform == "darwin":
+                browser_cache = original_home / "Library/Caches/ms-playwright"
+            elif os.name == "nt":
+                browser_cache = (
+                    Path(
+                        os.environ.get(
+                            "LOCALAPPDATA",
+                            str(original_home / "AppData/Local"),
+                        )
+                    )
+                    / "ms-playwright"
+                )
+            else:
+                browser_cache = original_home / ".cache/ms-playwright"
+            child_env["PLAYWRIGHT_BROWSERS_PATH"] = str(browser_cache)
         # Prove that public sourcing and MCP UI rendering remain usable before
         # optional PostgreSQL memory has been configured on a fresh machine.
         child_env["LEADGENERATOR_DATABASE_URL"] = (
