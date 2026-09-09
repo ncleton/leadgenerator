@@ -31,6 +31,12 @@ creates an immutable snapshot, so a later refresh cannot erase an earlier
 version. Use `get_remembered_company_history` when the user asks what changed or
 wants earlier observations.
 
+Every search and persisted render requires the selected active `objective_id`.
+Never omit it. The server rejects missing, unknown, archived, or conflicting IDs,
+then stores the association in the lead payload, the company's cumulative
+`objective_ids`, and the immutable snapshot. A company may belong to several
+objectives over time, but one operation can never cross-contaminate another scope.
+
 When the user asks to see the database in the project folder, call
 `export_company_memory` with the absolute path to the current project's
 `.agent-private/leadgenerator/database` directory. The export contains one

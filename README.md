@@ -144,7 +144,9 @@ Cette valeur reste un secret local. Les tables sont créées automatiquement et
 chaque mise à jour d'une entreprise produit un snapshot immuable. La déduplication
 utilise d'abord le SIREN, puis le domaine officiel et enfin une empreinte de
 secours ; les entreprises déjà connues sont exclues par défaut des nouvelles
-sélections.
+sélections. Toute nouvelle recherche ou actualisation persistante exige un
+objectif actif ; son identifiant est conservé dans la fiche, dans la relation
+cumulative de l'entreprise et dans chaque snapshot.
 
 La commande « Affiche la mémoire dans le dossier privé » génère un miroir lisible
 dans `.agent-private/leadgenerator/database/` : un index, une fiche `current.json`

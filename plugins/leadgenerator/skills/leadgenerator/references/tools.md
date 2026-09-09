@@ -36,6 +36,10 @@ chaque outil.
 - `search_french_companies` combine plusieurs critères publics avec la même
   mémoire et la même déduplication. Les deux outils de recherche refusent de
   démarrer tant que l'analyse du site vendeur n'est pas enregistrée.
+- Les recherches et les deux rendus exigent l'identifiant de l'objectif actif.
+  Le serveur refuse un identifiant absent, inconnu, archivé ou contradictoire et
+  PostgreSQL conserve l'association dans la fiche, la relation cumulative et le
+  snapshot immuable.
 - `scrape_public_page` et `inspect_official_visuals` ne travaillent que sur des
   URL publiques autorisées.
 - `render_lead_explorer` et `render_lead_workspace` rendent les vues interactives

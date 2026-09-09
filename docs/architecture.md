@@ -83,6 +83,12 @@ chaque écriture. L'outil `export_company_memory` matérialise une vue lisible s
 `.agent-private/leadgenerator/database` avec un index, la fiche courante et tout
 l'historique JSONL. Cette vue est un miroir privé ; PostgreSQL reste autoritaire.
 
+Les outils de recherche et les rendus persistants exigent un `objective_id`
+correspondant à un objectif actif. La même valeur est propagée dans le payload du
+lead, ajoutée au tableau cumulatif `objective_ids` de l'entreprise et inscrite sur
+chaque nouveau snapshot. Une absence, un objectif archivé ou un identifiant en
+conflit bloque l'opération avant l'écriture.
+
 ## Dépendances ciblées
 
 La collecte repose directement sur Playwright, Beautiful Soup et `html2text`.

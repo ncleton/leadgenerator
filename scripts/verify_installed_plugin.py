@@ -22,9 +22,11 @@ REQUIRED_TOOLS = {
     "get_lead_interface_mode",
     "record_lead_website_analysis",
     "render_lead_explorer",
+    "render_lead_workspace",
     "resolve_lead_objective",
     "save_lead_user_profile",
     "scrape_public_page",
+    "search_companies_by_naf",
     "search_french_companies",
 }
 TEST_OBJECTIVE_ID = "installation-mcp-smoke-test"
@@ -124,6 +126,18 @@ async def verify(plugin_root: Path) -> dict[str, Any]:
                 raise RuntimeError(
                     "découverte: outils MCP manquants: " + ", ".join(missing_tools)
                 )
+            required_objective_fields = {
+                "search_french_companies": "objective_id",
+                "search_companies_by_naf": "objective_id",
+                "render_lead_explorer": "objective_id",
+                "render_lead_workspace": "active_objective_id",
+            }
+            for tool_name, field_name in required_objective_fields.items():
+                required = set(tools[tool_name].input_schema.get("required", []))
+                if field_name not in required:
+                    raise RuntimeError(
+                        f"découverte: {tool_name} n'exige pas {field_name}."
+                    )
             mode = structured(
                 await session.call_tool("get_lead_interface_mode", {}),
                 stage="mode interface",
