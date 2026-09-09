@@ -120,7 +120,10 @@ website, one leader, or one image. For every selected company:
 5. discover the publicly accessible professional profiles associated with the
    exact company, state how many were found and actually reviewed, and disclose
    any coverage limit. Never log in to, scrape behind, or bypass LinkedIn access
-   controls;
+   controls. If the user requests a login or cookie reuse, say in concise French
+   that Lead Generator never asks for credentials, MFA codes, cookies, or an
+   exported browser session. Continue with public professional sources and keep
+   only reviewable public profile URLs under the active objective;
 6. rank and render at most the five best contacts for the objective, preserving
    identity evidence, profile rationale, and public-profile status. Each can be
    publicly enriched and explicitly retained as a contact without a CRM write;

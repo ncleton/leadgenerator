@@ -16,6 +16,9 @@ All notable changes to Lead Generator are documented here. The project follows
   before company search tools accept targeting filters.
 - Require an active objective ID on every company search and persisted UI refresh,
   and store it in the lead payload, company relation, and immutable snapshot.
+- Respond explicitly to authenticated LinkedIn or cookie-reuse requests without
+  collecting credentials or sessions, then continue through public sources under
+  the active objective.
 - Block lead sourcing until a persistent commercial objective is selected, and
   return a concrete setup example when none exists.
 - Require the actual MCP Apps explorer render in `chat_ui` mode and prohibit
