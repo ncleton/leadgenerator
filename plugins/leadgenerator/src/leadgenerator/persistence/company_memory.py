@@ -287,13 +287,27 @@ class CompanyMemory:
         self,
         leads: Iterable[LeadViewItem],
         *,
-        objective_id: str | None = None,
+        objective_id: str,
         search_context: dict[str, Any] | None = None,
         mark_as_search: bool = True,
         capture_kind: str | None = None,
     ) -> CompanyMemoryResult:
         """Upsert cards and report which identities were already known."""
-        requested_rows = [(company_identity_key(lead), lead) for lead in leads]
+        objective_id = objective_id.strip()
+        if not objective_id:
+            raise ValueError(
+                "Chaque entreprise mémorisée doit appartenir à un objectif actif."
+            )
+        scoped_leads = []
+        for lead in leads:
+            if lead.objective_id not in {None, objective_id}:
+                raise ValueError("Un lead appartient à un autre objectif actif.")
+            scoped_leads.append(
+                lead.model_copy(update={"objective_id": objective_id})
+                if lead.objective_id is None
+                else lead
+            )
+        requested_rows = [(company_identity_key(lead), lead) for lead in scoped_leads]
         if not requested_rows:
             return CompanyMemoryResult(frozenset(), frozenset(), self.count())
 
@@ -339,7 +353,7 @@ class CompanyMemory:
                         mode="json", exclude_none=True, exclude_defaults=True
                     )
                     domain = _website_domain(lead.website_url)
-                    objectives = [objective_id] if objective_id else []
+                    objectives = [objective_id]
                     cursor.execute(
                         f"""
                         INSERT INTO {TABLE} AS stored (
@@ -577,13 +591,27 @@ class CompanyMemory:
             with connection.cursor() as cursor:
                 cursor.execute(f"SELECT COUNT(*) FROM {TABLE}")
                 stored_companies = int(cursor.fetchone()[0])
+                cursor.execute(
+                    f"SELECT COUNT(*) FROM {TABLE} "
+                    "WHERE cardinality(objective_ids) > 0"
+                )
+                objective_scoped_companies = int(cursor.fetchone()[0])
                 cursor.execute(f"SELECT COUNT(*) FROM {SNAPSHOT_TABLE}")
                 stored_snapshots = int(cursor.fetchone()[0])
+                cursor.execute(
+                    f"SELECT COUNT(*) FROM {SNAPSHOT_TABLE} "
+                    "WHERE objective_id IS NOT NULL"
+                )
+                objective_scoped_snapshots = int(cursor.fetchone()[0])
         return {
             "backend": "postgresql",
             "connected": True,
             "stored_companies": stored_companies,
             "stored_snapshots": stored_snapshots,
+            "objective_scoped_companies": objective_scoped_companies,
+            "unscoped_companies": stored_companies - objective_scoped_companies,
+            "objective_scoped_snapshots": objective_scoped_snapshots,
+            "unscoped_snapshots": stored_snapshots - objective_scoped_snapshots,
             "database_url_env": DATABASE_URL_ENV,
         }
 

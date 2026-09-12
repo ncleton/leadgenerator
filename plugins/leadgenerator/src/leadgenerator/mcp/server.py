@@ -53,7 +53,9 @@ from leadgenerator.profiles.preferences import (
 from leadgenerator.profiles.user import (
     build_user_profile,
     load_user_profile,
+    record_website_analysis,
     save_user_profile,
+    website_host,
 )
 from leadgenerator.research.browser import collect_html, html_to_markdown
 from leadgenerator.research.company_research import (
@@ -73,6 +75,11 @@ from leadgenerator.research.company_search import (
     search_french_companies as run_company_search,
 )
 from leadgenerator.research.company_directory import search_public_companies_by_naf
+from leadgenerator.research.social import (
+    SocialQuery,
+    check_social_connectors as read_social_connector_statuses,
+    run_social_query,
+)
 from leadgenerator.research.url_safety import validate_public_url
 from leadgenerator.ui.explorer import (
     LEAD_EXPLORER_HTML,
@@ -114,24 +121,50 @@ INTERFACE_RESOURCE_URIS = frozenset(
 company_memory = CompanyMemory()
 
 
+def _require_active_objective_id(objective_id: str) -> str:
+    """Return a validated active objective or reject the lead operation."""
+    objective_id = objective_id.strip()
+    if not objective_id:
+        raise ToolError(
+            "Un objectif actif est obligatoire avant d'enregistrer ou d'afficher "
+            "des leads. Appelez d'abord resolve_lead_objective."
+        )
+    try:
+        objective = ObjectiveStore().load(objective_id)
+    except (KeyError, ValueError) as exc:
+        raise ToolError("L'objectif transmis est inconnu ou invalide.") from exc
+    if objective.status != "active":
+        raise ToolError("Un objectif archivé ne peut pas recevoir de nouveaux leads.")
+    return objective.objective_id
+
+
 def _memory_metadata(
     leads: list[LeadViewItem],
     *,
-    objective_id: str | None,
+    objective_id: str,
     search_context: dict[str, object] | None = None,
     include_previously_seen: bool = False,
     mark_as_search: bool = True,
 ) -> tuple[list[LeadViewItem], dict[str, object]]:
     """Persist cards and optionally hide identities already present in memory."""
+    scoped_leads = []
+    for lead in leads:
+        if lead.objective_id not in {None, objective_id}:
+            raise ToolError("Un lead appartient à un autre objectif actif.")
+        scoped_leads.append(
+            lead.model_copy(update={"objective_id": objective_id})
+            if lead.objective_id is None
+            else lead
+        )
     try:
         result = company_memory.remember(
-            leads,
+            scoped_leads,
             objective_id=objective_id,
             search_context=search_context,
             mark_as_search=mark_as_search,
         )
     except RuntimeError:
-        return leads, {
+        return scoped_leads, {
             "backend": "postgresql",
             "available": False,
             "stored_companies": None,
@@ -144,9 +177,13 @@ def _memory_metadata(
             ),
         }
     visible = (
-        leads
+        scoped_leads
         if include_previously_seen or not mark_as_search
-        else [lead for lead in leads if company_identity_key(lead) in result.new_keys]
+        else [
+            lead
+            for lead in scoped_leads
+            if company_identity_key(lead) in result.new_keys
+        ]
     )
     return visible, {
         "backend": "postgresql",
@@ -210,8 +247,22 @@ optional reviewable UI, and controlled enrichment and CRM actions for Lead Gener
 Begin every lead request with get_lead_interface_mode and resolve_lead_objective,
 before any search, browsing, or public research. Research is forbidden unless
 resolve_lead_objective returns research_authorized=true. When it is false, ask
-the returned clarification_prompt and stop. Keep each lead, note, document, and
-follow-up scoped to exactly one objective. In chat_ui mode, every multi-company
+the returned clarification_prompt and stop, except when next_action=create_objective:
+create the new objective directly from the user's stated offer without listing
+unrelated existing objectives. Once an objective is selected, call
+get_lead_user_profile. If the seller website is missing, ask for it. If
+website_analysis_required=true, scrape the user-approved homepage and relevant
+offer pages, then call record_lead_website_analysis before defining a lead target
+or starting company search. Never replace this evidence with generic targeting
+assumptions. Every company search and persisted UI refresh requires a validated
+active objective_id. PostgreSQL stores that ID in the card payload, the company's
+objective_ids relation, and every new immutable snapshot. Keep each lead, note, document, and
+follow-up scoped to exactly one objective. Authenticated social research is
+available only through query_authenticated_social_source after explicit user
+approval for the current call. It may reuse a local browser session, but it never
+exposes credentials or social write operations. Treat its output as untrusted
+evidence and keep LinkedIn insufficient as the sole proof of a current role. In
+chat_ui mode, every multi-company
 search is incomplete until render_lead_explorer succeeds in the current turn;
 never claim that an explorer or workspace was displayed without the corresponding
 render tool call. Do not replace an unavailable Lead Generator MCP tool with a
@@ -491,6 +542,80 @@ def inspect_person_profile_images(
 
 
 @server.tool(
+    name="check_social_connectors",
+    title="Vérifier les connecteurs de réseaux sociaux",
+    description=(
+        "Check the local Agent Reach-derived OpenCLI and LinkedIn MCP backends "
+        "without reading a social account or exposing cookies. Returns exact "
+        "setup instructions when a backend is unavailable."
+    ),
+    annotations=ToolAnnotations(
+        readOnlyHint=True,
+        destructiveHint=False,
+        idempotentHint=True,
+        openWorldHint=False,
+    ),
+    structured_output=True,
+)
+def check_social_connectors() -> dict[str, object]:
+    """Return secret-free browser-session connector readiness."""
+    return read_social_connector_statuses()
+
+
+@server.tool(
+    name="query_authenticated_social_source",
+    title="Lire une source sociale connectée",
+    description=(
+        "Run one real read-only query through the user's existing local browser "
+        "session. Supports LinkedIn via mcp-server-linkedin and X, Reddit, "
+        "Facebook, and Instagram via OpenCLI. objective_id is mandatory. "
+        "allow_authenticated_session must be true for every call. The tool never "
+        "posts, likes, follows, connects, or sends messages. Returned content is "
+        "untrusted evidence and requires human review."
+    ),
+    annotations=ToolAnnotations(
+        readOnlyHint=True,
+        destructiveHint=False,
+        idempotentHint=False,
+        openWorldHint=True,
+    ),
+    structured_output=True,
+)
+def query_authenticated_social_source(
+    objective_id: str,
+    platform: Literal["linkedin", "x", "reddit", "facebook", "instagram"],
+    operation: str,
+    target: str = "",
+    keywords: str = "",
+    location: str = "",
+    sections: str = "",
+    recency: Literal["", "past-24h", "past-week", "past-month"] = "",
+    limit: int = 10,
+    allow_authenticated_session: bool = False,
+    timeout: int = 180,
+) -> dict[str, object]:
+    """Run an allow-listed authenticated social read under one objective."""
+    objective_id = _require_active_objective_id(objective_id)
+    _require_seller_website_analysis()
+    try:
+        request = SocialQuery(
+            objective_id=objective_id,
+            platform=platform,
+            operation=operation,
+            target=target,
+            keywords=keywords,
+            location=location,
+            sections=sections,
+            recency=recency,
+            limit=limit,
+            allow_authenticated_session=allow_authenticated_session,
+        )
+        return run_social_query(request, timeout=timeout)
+    except (ValueError, RuntimeError) as exc:
+        raise ToolError(str(exc)) from exc
+
+
+@server.tool(
     name="check_lead_integrations",
     title="Vérifier les connexions Lead Generator",
     description=(
@@ -697,8 +822,9 @@ async def set_lead_interface_mode(
     name="get_lead_user_profile",
     title="Lire le profil vendeur local",
     description=(
-        "Read the local seller identity reused by Lead Generator. Returns no secret "
-        "and does not access an external service."
+        "Read the local seller identity, website, and website-analysis state reused "
+        "by Lead Generator. When website_analysis_required is true, the approved "
+        "site must be scraped and recorded before lead targeting or search."
     ),
     annotations=ToolAnnotations(
         readOnlyHint=True,
@@ -714,6 +840,18 @@ def get_lead_user_profile() -> dict[str, object]:
     return {
         "configured": profile is not None,
         "profile": profile.model_dump(mode="json") if profile else None,
+        "website_configured": bool(profile and profile.seller_website_url),
+        "website_analysis_required": not bool(
+            profile and profile.seller_website_url and profile.website_analysis
+        ),
+        "clarification_prompt": (
+            None
+            if profile and profile.seller_website_url
+            else (
+                "Quel est le site Internet de votre entreprise ? Je vais d'abord "
+                "analyser votre offre, puis chercher les entreprises pertinentes."
+            )
+        ),
     }
 
 
@@ -721,8 +859,9 @@ def get_lead_user_profile() -> dict[str, object]:
     name="save_lead_user_profile",
     title="Enregistrer le profil vendeur local",
     description=(
-        "Validate and store the seller name, company, and optional public website "
-        "on the current machine. Never accepts credentials."
+        "Validate and store the seller's public website and any known identity "
+        "details on the current machine. The website may be saved before the name "
+        "or company. Changing it clears the prior website analysis."
     ),
     annotations=ToolAnnotations(
         readOnlyHint=False,
@@ -733,18 +872,94 @@ def get_lead_user_profile() -> dict[str, object]:
     structured_output=True,
 )
 def save_lead_user_profile(
-    seller_name: str,
-    seller_company: str,
+    seller_name: str = "",
+    seller_company: str = "",
     seller_website_url: str = "",
 ) -> dict[str, object]:
-    """Persist normalized seller defaults outside the shared plugin."""
+    """Merge normalized seller defaults outside the shared plugin."""
+    existing = load_user_profile()
+    requested_website = seller_website_url.strip()
+    previous_website = existing.seller_website_url if existing else None
     profile = build_user_profile(
-        seller_name=seller_name,
-        seller_company=seller_company,
-        seller_website_url=seller_website_url,
+        seller_name=seller_name or (existing.seller_name if existing else None),
+        seller_company=seller_company
+        or (existing.seller_company if existing else None),
+        seller_website_url=requested_website or previous_website,
+        website_analysis=existing.website_analysis if existing else None,
     )
+    if (
+        existing
+        and requested_website
+        and previous_website
+        and website_host(profile.seller_website_url or "")
+        != website_host(previous_website)
+    ):
+        profile = profile.model_copy(update={"website_analysis": None})
     path = save_user_profile(profile)
-    return {"profile": profile.model_dump(mode="json"), "local_path": str(path)}
+    return {
+        "profile": profile.model_dump(mode="json"),
+        "local_path": str(path),
+        "website_analysis_required": not bool(profile.website_analysis),
+        "next_action": (
+            "scrape_seller_website"
+            if profile.seller_website_url and not profile.website_analysis
+            else "profile_ready"
+        ),
+    }
+
+
+@server.tool(
+    name="record_lead_website_analysis",
+    title="Enregistrer l'analyse du site vendeur",
+    description=(
+        "Record the evidence-backed offer summary after scrape_public_page has "
+        "successfully read the seller homepage and relevant offer pages. All source "
+        "URLs must belong to the saved seller domain. Call this before choosing "
+        "lead filters or searching companies."
+    ),
+    annotations=ToolAnnotations(
+        readOnlyHint=False,
+        destructiveHint=False,
+        idempotentHint=False,
+        openWorldHint=False,
+    ),
+    structured_output=True,
+)
+def record_lead_website_analysis(
+    offer_summary: str,
+    source_urls: list[str],
+) -> dict[str, object]:
+    """Persist proof that the seller website informed the active offer."""
+    profile = load_user_profile()
+    if not profile:
+        raise ValueError("Enregistrez d'abord le profil vendeur et son site Internet.")
+    updated = record_website_analysis(
+        profile,
+        offer_summary=offer_summary,
+        source_urls=source_urls,
+    )
+    path = save_user_profile(updated)
+    return {
+        "profile": updated.model_dump(mode="json"),
+        "local_path": str(path),
+        "website_analysis_required": False,
+        "next_action": "refine_objective_from_website_evidence",
+    }
+
+
+def _require_seller_website_analysis() -> None:
+    """Block company sourcing until the seller offer has sourced web context."""
+    profile = load_user_profile()
+    if not profile or not profile.seller_website_url:
+        raise ToolError(
+            "Le site Internet du vendeur doit être enregistré avant la recherche."
+        )
+    if not profile.website_analysis:
+        raise ToolError(
+            "Le site vendeur est enregistré mais n'a pas encore été analysé. "
+            "Lisez ses pages publiques puis appelez record_lead_website_analysis "
+            "avant toute recherche d'entreprises."
+        )
 
 
 @server.tool(
@@ -976,7 +1191,9 @@ def update_lead_objective(
         "Route a lead request to an explicit, sticky, unique, or semantic objective. "
         "Call this after get_lead_interface_mode and before every search or public "
         "research. Research may start only when research_authorized is true. "
-        "Unconfigured or ambiguous requests return the exact clarification to ask."
+        "Unconfigured or ambiguous requests return the exact clarification to ask. "
+        "A clearly stated new offer returns next_action=create_objective instead of "
+        "exposing unrelated objective names."
     ),
     annotations=ToolAnnotations(
         readOnlyHint=False,
@@ -1005,9 +1222,13 @@ def resolve_lead_objective(
             "activate_objective"
             if decision.status == "selected"
             else (
-                "ask_clarification"
-                if decision.clarification_prompt
-                else "return_to_general_assistant"
+                "create_objective"
+                if decision.status == "new_objective"
+                else (
+                    "ask_clarification"
+                    if decision.clarification_prompt
+                    else "return_to_general_assistant"
+                )
             )
         ),
     }
@@ -1341,12 +1562,15 @@ def sync_hubspot_contacts(
     title="Trouver des entreprises françaises",
     description=(
         "CALL THIS TOOL only after resolve_lead_objective returned "
-        "research_authorized=true, whenever the user asks to find, list, show, source, or "
-        "discover French companies, leads, or prospects using several criteria "
+        "research_authorized=true and record_lead_website_analysis completed, "
+        "whenever the user asks to find, list, show, source, or discover French "
+        "companies, leads, or prospects using several criteria "
         "such as NAF codes, geography, category, or employee bands. It returns "
         "official public-register facts and direct source links in either "
-        "presentation mode. Every returned identity is remembered in private local "
-        "PostgreSQL and previously seen companies are excluded by default. For one "
+        "presentation mode. objective_id is required and must reference the active "
+        "persisted objective. Every returned identity and snapshot is remembered "
+        "under that objective in private local PostgreSQL, and previously seen "
+        "companies are excluded by default. For one "
         "explicit NAF/APE code, prefer search_companies_by_naf. Only call a render "
         "tool when chat_ui is enabled."
     ),
@@ -1359,6 +1583,7 @@ def sync_hubspot_contacts(
     structured_output=True,
 )
 def search_french_companies(
+    objective_id: str,
     query: str | None = None,
     naf_codes: list[str] | None = None,
     activity_section: str | None = None,
@@ -1372,10 +1597,11 @@ def search_french_companies(
     headquarters_only: bool = False,
     page: int = 1,
     page_size: int = 10,
-    objective_id: str = "",
     include_previously_seen: bool = False,
 ) -> dict[str, object]:
     """Return public legal facts inside the interactive Lead Generator contract."""
+    objective_id = _require_active_objective_id(objective_id)
+    _require_seller_website_analysis()
     search = CompanySearchRequest(
         query=query,
         naf_codes=naf_codes or [],
@@ -1397,13 +1623,10 @@ def search_french_companies(
         for company in result.get("companies", [])
         if (lead := _company_record_to_lead(company)) is not None
     ]
-    if objective_id:
-        leads = [
-            lead.model_copy(update={"objective_id": objective_id}) for lead in leads
-        ]
+    leads = [lead.model_copy(update={"objective_id": objective_id}) for lead in leads]
     leads, memory = _memory_metadata(
         leads,
-        objective_id=objective_id or None,
+        objective_id=objective_id,
         search_context=search.model_dump(mode="json"),
         include_previously_seen=include_previously_seen,
     )
@@ -1415,7 +1638,7 @@ def search_french_companies(
         page=result.get("page"),
         total_results=result.get("total_results"),
         source_url=result.get("source_url"),
-        objective_id=objective_id or None,
+        objective_id=objective_id,
         headquarters_only=headquarters_only,
     )
     explorer["search_details"] = {
@@ -1525,10 +1748,12 @@ def _company_record_to_lead(company: dict[str, object]) -> LeadViewItem | None:
     title="Rechercher des entreprises par code NAF",
     description=(
         "CALL THIS TOOL only after resolve_lead_objective returned "
-        "research_authorized=true, for every request to find, list, show, source, or discover "
-        "companies, leads, or prospects from one explicit French NAF/APE code. "
+        "research_authorized=true and record_lead_website_analysis completed, for "
+        "every request to find, list, show, source, or discover companies, leads, "
+        "or prospects from one explicit French NAF/APE code. "
         "This is the preferred single-NAF search tool and returns sourced public "
-        "records in either presentation mode. Do not use search_french_companies "
+        "records in either presentation mode. objective_id is required and must "
+        "reference the active persisted objective. Do not use search_french_companies "
         "for this case. Only call a render tool when chat_ui is enabled. Company "
         "websites remain missing until separately qualified. Every returned "
         "identity is remembered in private local PostgreSQL and previously seen "
@@ -1544,30 +1769,31 @@ def _company_record_to_lead(company: dict[str, object]) -> LeadViewItem | None:
 )
 def search_companies_by_naf(
     naf_code: str,
+    objective_id: str,
     department: str = "",
     page: int = 1,
     per_page: int = 20,
-    objective_id: str = "",
     include_previously_seen: bool = False,
 ) -> dict[str, object]:
     """Return active company records and open them in the NAF selection view."""
+    objective_id = _require_active_objective_id(objective_id)
+    _require_seller_website_analysis()
     payload = search_public_companies_by_naf(
         naf_code,
         department=department,
         page=page,
         per_page=per_page,
     )
-    payload["objective_id"] = objective_id or None
-    if objective_id:
-        for lead in payload.get("leads", []):
-            existing = lead.get("objective_id")
-            if existing not in {None, objective_id}:
-                raise ValueError("Un lead appartient à un autre objectif actif.")
-            lead["objective_id"] = objective_id
+    payload["objective_id"] = objective_id
+    for lead in payload.get("leads", []):
+        existing = lead.get("objective_id")
+        if existing not in {None, objective_id}:
+            raise ValueError("Un lead appartient à un autre objectif actif.")
+        lead["objective_id"] = objective_id
     leads = [LeadViewItem.model_validate(lead) for lead in payload.get("leads", [])]
     leads, memory = _memory_metadata(
         leads,
-        objective_id=objective_id or None,
+        objective_id=objective_id,
         search_context={
             "naf_code": naf_code,
             "department": department,
@@ -1627,8 +1853,9 @@ def _mcp_app_result(payload: dict[str, object], summary: str) -> CallToolResult:
         "view exposes the complete public-enrichment intent for one company and "
         "for a selected batch, including distinct logo, representative image, "
         "IGN aerial view, leader, news, public-profile coverage, top-five contacts, "
-        "and sourced outreach angle. It refreshes each supplied company card in "
-        "private local PostgreSQL, and never spends credits, sends outreach, or "
+        "and sourced outreach angle. objective_id is required and must reference "
+        "the active persisted objective. It refreshes each supplied company card "
+        "under that objective in private local PostgreSQL, and never spends credits, sends outreach, or "
         "synchronizes it."
     ),
     annotations=ToolAnnotations(
@@ -1642,12 +1869,13 @@ def _mcp_app_result(payload: dict[str, object], summary: str) -> CallToolResult:
 )
 def _render_lead_explorer_tool(
     leads: list[LeadViewItem],
+    objective_id: str,
     initial_view: Literal["map", "naf_list", "shortlist"] = "map",
     naf_code: str = "",
     naf_label: str = "",
-    objective_id: str = "",
 ) -> dict[str, object]:
     """Render a compact MCP result while preserving the structured UI data."""
+    objective_id = _require_active_objective_id(objective_id)
     payload = render_lead_explorer(
         leads,
         initial_view=initial_view,
@@ -1657,7 +1885,7 @@ def _render_lead_explorer_tool(
     )
     _visible, memory = _memory_metadata(
         leads,
-        objective_id=objective_id or None,
+        objective_id=objective_id,
         mark_as_search=False,
     )
     payload["memory"] = memory
@@ -1706,8 +1934,9 @@ def render_lead_workspace(
         "the complete interactive pipeline: company description and news, distinct "
         "official logo and representative image, centered IGN aerial view, leader, "
         "public-profile coverage, ranked top-five contacts, sourced outreach angle, "
-        "integration states, and the HubSpot review. It refreshes each supplied "
-        "company card in private local PostgreSQL; UI actions continue in chat and "
+        "integration states, and the HubSpot review. active_objective_id is required "
+        "and must reference the active persisted objective. It refreshes each supplied "
+        "company card under that objective in private local PostgreSQL; UI actions continue in chat and "
         "never authorize a paid lookup or CRM write."
     ),
     annotations=ToolAnnotations(
@@ -1721,6 +1950,7 @@ def render_lead_workspace(
 )
 def _render_lead_workspace_tool(
     leads: list[LeadViewItem],
+    active_objective_id: str,
     initial_view: Literal[
         "objectives", "pipeline", "companies", "contacts", "visuals", "hubspot"
     ] = "pipeline",
@@ -1730,10 +1960,10 @@ def _render_lead_workspace_tool(
     integrations: list[IntegrationView] | None = None,
     hubspot: HubSpotPreview | None = None,
     objectives: list[dict[str, object]] | None = None,
-    active_objective_id: str | None = None,
     objective_resolution: dict[str, object] | None = None,
 ) -> dict[str, object]:
     """Render a compact MCP result while preserving the structured UI data."""
+    active_objective_id = _require_active_objective_id(active_objective_id)
     payload = render_lead_workspace(
         leads,
         initial_view=initial_view,

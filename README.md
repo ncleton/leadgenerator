@@ -43,6 +43,12 @@ d'ambiguïté. Il fonctionne avec une interface visuelle ou en mode texte. Toute
 recherche payante ou écriture HubSpot nécessite votre accord. Les entreprises
 déjà étudiées sont mémorisées localement dans PostgreSQL, jamais dans Git.
 
+Lorsque l'utilisateur l'approuve explicitement, Lead Generator peut aussi lire
+LinkedIn, X, Reddit, Facebook et Instagram à travers ses sessions locales. Cette
+surface inspirée d'Agent Reach est strictement limitée à la lecture ; aucune action
+sociale ou prise de contact n'est exposée. Voir
+[les connecteurs sociaux](docs/social-connectors.md).
+
 ## Démarrage rapide
 
 Prérequis : [Codex](https://developers.openai.com/codex/),
@@ -119,9 +125,13 @@ relancer. Une application déjà ouverte conserve son ancien inventaire de plugi
 ouvrir seulement un nouvel onglet ou une nouvelle tâche ne suffit pas. Ouvrir
 ensuite une nouvelle tâche et demander : « Trouve-moi des industriels
 dans le département du Nord et affiche le parcours Lead Generator. » Si aucun objectif n'est
-encore configuré, l'agent demande d'abord ce que vous vendez, la cible, la zone,
-les interlocuteurs et les signaux recherchés, avec un exemple concret. Aucune
-recherche n'est lancée avant cette réponse. En mode interface (activé par défaut),
+encore configuré ou pertinent, l'agent demande simplement ce que vous vendez,
+sans afficher d'anciens objectifs sans rapport. Une réponse claire crée directement
+le nouvel objectif. L'agent demande ensuite, une seule fois, le site Internet du
+vendeur. Il lit la page d'accueil et les pages d'offre pertinentes, puis enregistre
+une synthèse sourcée avant de proposer un ciblage. Enregistrer l'URL seule ne suffit
+pas et aucune recherche de leads n'est lancée avant cette analyse. En mode interface
+(activé par défaut),
 la recherche s'achève par un vrai rendu de l'explorateur MCP dans la conversation.
 
 ### Mémoire privée PostgreSQL
@@ -140,7 +150,9 @@ Cette valeur reste un secret local. Les tables sont créées automatiquement et
 chaque mise à jour d'une entreprise produit un snapshot immuable. La déduplication
 utilise d'abord le SIREN, puis le domaine officiel et enfin une empreinte de
 secours ; les entreprises déjà connues sont exclues par défaut des nouvelles
-sélections.
+sélections. Toute nouvelle recherche ou actualisation persistante exige un
+objectif actif ; son identifiant est conservé dans la fiche, dans la relation
+cumulative de l'entreprise et dans chaque snapshot.
 
 La commande « Affiche la mémoire dans le dossier privé » génère un miroir lisible
 dans `.agent-private/leadgenerator/database/` : un index, une fiche `current.json`
@@ -172,7 +184,8 @@ uv run --project plugins/leadgenerator playwright install chromium
 
 ## Principes produit
 
-- sources professionnelles publiques et pertinentes uniquement ;
+- sources professionnelles publiques ou sessions sociales locales explicitement
+  approuvées, avec provenance conservée ;
 - faits observés, preuves et hypothèses toujours séparés ;
 - aucune donnée personnelle inventée ni contournement d'accès ;
 - aucune prospection envoyée automatiquement ;

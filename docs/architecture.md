@@ -13,6 +13,7 @@ Skill Lead Generator ──► outils MCP ──► modules Python spécialisés
         │                 ├── routage + contexte documentaire
         │                 ├── mémoire PostgreSQL des entreprises
         │                 ├── recherche publique
+        │                 ├── réseaux sociaux connectés en lecture seule
         │                 ├── profils locaux
         │                 ├── intégrations confirmées
         │                 └── ressources MCP Apps
@@ -41,6 +42,17 @@ contrat de sortie. Avant une recherche, le routeur choisit dans l'ordre une port
 explicite, la sélection persistante de la conversation, l'unique objectif actif,
 puis une correspondance sémantique déterministe. Une égalité plausible produit
 une question de clarification et aucune recherche n'est lancée.
+L'objectif unique est sélectionné sans question tant que la demande respecte ses
+critères. Un élargissement ou déplacement géographique explicite produit au
+contraire une explication du conflit et propose de créer un nouvel objectif.
+
+Une demande générique sans correspondance demande ce que l'utilisateur vend au
+lieu d'exposer les noms d'objectifs internes sans rapport. Une nouvelle offre
+explicite déclenche la création directe de son objectif. Lors de l'onboarding, le
+site vendeur est enregistré puis effectivement lu : la synthèse de l'offre, les
+pages sources et la date d'analyse sont conservées dans le profil privé. Tant que
+cette preuve d'analyse manque, le skill interdit de définir des filtres ou de
+lancer une recherche d'entreprises.
 
 ## État et données
 
@@ -72,9 +84,22 @@ chaque écriture. L'outil `export_company_memory` matérialise une vue lisible s
 `.agent-private/leadgenerator/database` avec un index, la fiche courante et tout
 l'historique JSONL. Cette vue est un miroir privé ; PostgreSQL reste autoritaire.
 
+Les outils de recherche et les rendus persistants exigent un `objective_id`
+correspondant à un objectif actif. La même valeur est propagée dans le payload du
+lead, ajoutée au tableau cumulatif `objective_ids` de l'entreprise et inscrite sur
+chaque nouveau snapshot. Une absence, un objectif archivé ou un identifiant en
+conflit bloque l'opération avant l'écriture.
+
 ## Dépendances ciblées
 
-La collecte repose directement sur Playwright, Beautiful Soup et `html2text`.
+La collecte publique repose directement sur Playwright, Beautiful Soup et
+`html2text`. La recherche sociale connectée reprend le routage d'Agent Reach :
+OpenCLI sert X, Reddit, Facebook et Instagram depuis la session locale du
+navigateur ; `mcp-server-linkedin` sert LinkedIn via un sous-processus MCP épinglé.
+Lead Generator ne réexpose qu'une liste fermée d'opérations de lecture et conserve
+l'objectif, le backend, l'heure d'observation et les URL trouvées. Une indisponibilité
+du backend produit une erreur et une instruction de configuration explicites.
+
 Le dépôt n'embarque aucun framework générique inutilisé : seules les dépendances
 nécessaires au runtime Lead Generator sont conservées.
 

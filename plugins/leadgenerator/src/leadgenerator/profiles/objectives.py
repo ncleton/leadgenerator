@@ -232,14 +232,18 @@ class ObjectiveState(StrictModel):
         return values
 
 
-RouteStatus = Literal["selected", "ambiguous", "not_applicable", "unconfigured"]
+RouteStatus = Literal[
+    "selected",
+    "new_objective",
+    "objective_conflict",
+    "ambiguous",
+    "not_applicable",
+    "unconfigured",
+]
 
 OBJECTIVE_SETUP_PROMPT = (
-    "Quel est votre objectif commercial ? Indiquez ce que vous vendez, les "
-    "entreprises visées, la zone géographique, les interlocuteurs recherchés et "
-    "les signaux utiles. Exemple : « Je vends une solution de maintenance "
-    "prédictive aux industriels de 50 à 250 salariés dans les Hauts-de-France "
-    "et je veux identifier les directeurs de site d'entreprises qui recrutent. »"
+    "Que souhaitez-vous vendre à ces entreprises ? Une phrase suffit, par "
+    "exemple : « Je vends des bornes de recharge. »"
 )
 
 
@@ -260,6 +264,7 @@ class RoutingDecision(StrictModel):
     agent_id: str | None = None
     reason: str
     candidates: list[RoutingCandidate] = Field(default_factory=list)
+    conflicts: list[str] = Field(default_factory=list)
     clarification_prompt: str | None = None
 
 
@@ -337,6 +342,118 @@ def _is_lead_work(message: str) -> bool:
         "crm",
     }
     return bool(tokens & lead_terms)
+
+
+def _describes_new_offer(message: str) -> bool:
+    """Recognize a plain-language answer about what the user wants to sell."""
+    tokens = _tokens(message)
+    commercial_terms = {
+        "commercialise",
+        "commercialiser",
+        "offre",
+        "propose",
+        "proposer",
+        "solution",
+        "vendre",
+        "vends",
+        "vendons",
+    }
+    return bool(tokens & commercial_terms)
+
+
+def _requests_new_objective(message: str) -> bool:
+    normalized = _normalize_text(message)
+    return "nouvel objectif" in normalized or "nouveau objectif" in normalized
+
+
+_GEOGRAPHY_PHRASES: dict[str, tuple[str, ...]] = {
+    "france": ("france", "national", "nationale", "nationalement"),
+    "auvergne-rhone-alpes": ("auvergne rhone alpes",),
+    "bourgogne-franche-comte": ("bourgogne franche comte",),
+    "bretagne": ("bretagne",),
+    "centre-val-de-loire": ("centre val de loire",),
+    "corse": ("corse",),
+    "grand-est": ("grand est",),
+    "hauts-de-france": ("hauts de france",),
+    "ile-de-france": ("ile de france",),
+    "normandie": ("normandie",),
+    "nouvelle-aquitaine": ("nouvelle aquitaine",),
+    "occitanie": ("occitanie",),
+    "pays-de-la-loire": ("pays de la loire",),
+    "provence-alpes-cote-d-azur": ("provence alpes cote d azur", "paca"),
+    "lille": ("lille", "lillois", "lilloise", "metropole lilloise"),
+    "paris": ("paris", "parisien", "parisienne"),
+    "lyon": ("lyon", "lyonnais", "lyonnaise"),
+    "marseille": ("marseille", "marseillais", "marseillaise"),
+    "bordeaux": ("bordeaux", "bordelais", "bordelaise"),
+    "toulouse": ("toulouse", "toulousain", "toulousaine"),
+    "nantes": ("nantes", "nantais", "nantaise"),
+    "rennes": ("rennes", "rennais", "rennaise"),
+    "strasbourg": ("strasbourg", "strasbourgeois", "strasbourgeoise"),
+    "nice": ("nice", "nicois", "nicoise"),
+    "montpellier": ("montpellier", "montpellierain", "montpellieraine"),
+}
+
+_GEOGRAPHY_PARENTS: dict[str, set[str]] = {
+    "lille": {"hauts-de-france", "france"},
+    "paris": {"ile-de-france", "france"},
+    "lyon": {"auvergne-rhone-alpes", "france"},
+    "marseille": {"provence-alpes-cote-d-azur", "france"},
+    "bordeaux": {"nouvelle-aquitaine", "france"},
+    "toulouse": {"occitanie", "france"},
+    "nantes": {"pays-de-la-loire", "france"},
+    "rennes": {"bretagne", "france"},
+    "strasbourg": {"grand-est", "france"},
+    "nice": {"provence-alpes-cote-d-azur", "france"},
+    "montpellier": {"occitanie", "france"},
+}
+for _region in {
+    "auvergne-rhone-alpes",
+    "bourgogne-franche-comte",
+    "bretagne",
+    "centre-val-de-loire",
+    "corse",
+    "grand-est",
+    "hauts-de-france",
+    "ile-de-france",
+    "normandie",
+    "nouvelle-aquitaine",
+    "occitanie",
+    "pays-de-la-loire",
+    "provence-alpes-cote-d-azur",
+}:
+    _GEOGRAPHY_PARENTS[_region] = {"france"}
+
+
+def _geography_scopes(value: str) -> set[str]:
+    normalized = f" {_normalize_text(value)} "
+    return {
+        scope
+        for scope, phrases in _GEOGRAPHY_PHRASES.items()
+        if any(f" {phrase} " in normalized for phrase in phrases)
+    }
+
+
+def _geography_conflicts(objective: Objective, message: str) -> list[str]:
+    """Explain explicit broadening or displacement of a saved geography."""
+    objective_scopes = _geography_scopes(objective.geography)
+    requested_scopes = _geography_scopes(message)
+    if not objective_scopes or not requested_scopes:
+        return []
+    if objective_scopes & requested_scopes:
+        return []
+    requested_is_narrower = any(
+        objective_scope in _GEOGRAPHY_PARENTS.get(requested_scope, set())
+        for objective_scope in objective_scopes
+        for requested_scope in requested_scopes
+    )
+    if requested_is_narrower:
+        return []
+    requested = ", ".join(sorted(requested_scopes))
+    return [
+        f"La localisation demandée ({requested}) ne correspond pas à la "
+        f"localisation enregistrée ({objective.geography})."
+    ]
 
 
 def _atomic_json(path: Path, model: BaseModel) -> Path:
@@ -843,11 +960,25 @@ class ObjectiveStore:
             if conversation_id:
                 self.select_for_conversation(conversation_id, objective.objective_id)
             return self._selected(objective, "explicit_objective")
+        if _requests_new_objective(message):
+            return RoutingDecision(
+                status="new_objective",
+                reason="explicit_new_objective_request",
+            )
         if conversation_id:
             sticky = self.selected_for_conversation(conversation_id)
             if sticky:
-                return self._selected(sticky, "sticky_conversation_objective")
+                return self._selected_or_conflict(
+                    sticky,
+                    message,
+                    "sticky_conversation_objective",
+                )
         if not active:
+            if _describes_new_offer(message):
+                return RoutingDecision(
+                    status="new_objective",
+                    reason="new_offer_without_selected_objective",
+                )
             return RoutingDecision(
                 status="unconfigured",
                 reason="no_active_objectives",
@@ -857,25 +988,38 @@ class ObjectiveStore:
             )
         if len(active) == 1 and _is_lead_work(message):
             objective = active[0]
-            if conversation_id:
+            if (
+                _describes_new_offer(message)
+                and self._candidate(objective, message).score < 4
+            ):
+                return RoutingDecision(
+                    status="new_objective",
+                    reason="new_offer_without_selected_objective",
+                )
+            decision = self._selected_or_conflict(
+                objective,
+                message,
+                "only_objective_for_lead_work",
+            )
+            if conversation_id and decision.status == "selected":
                 self.select_for_conversation(conversation_id, objective.objective_id)
-            return self._selected(objective, "only_objective_for_lead_work")
+            return decision
         candidates = sorted(
             (self._candidate(objective, message) for objective in active),
             key=lambda item: (-item.score, item.objective_id),
         )
         plausible = [candidate for candidate in candidates if candidate.score >= 4]
         if not plausible:
+            if _describes_new_offer(message):
+                return RoutingDecision(
+                    status="new_objective",
+                    reason="new_offer_without_selected_objective",
+                )
             if _is_lead_work(message):
-                names = ", ".join(candidate.name for candidate in candidates)
                 return RoutingDecision(
                     status="ambiguous",
                     reason="lead_work_without_matching_objective",
-                    candidates=candidates,
-                    clarification_prompt=(
-                        "Quel objectif faut-il utiliser pour cette recherche ? "
-                        f"Choisissez parmi : {names}, ou décrivez un nouvel objectif."
-                    ),
+                    clarification_prompt=OBJECTIVE_SETUP_PROMPT,
                 )
             return RoutingDecision(
                 status="not_applicable",
@@ -900,9 +1044,38 @@ class ObjectiveStore:
                 ),
             )
         objective = self.load(top.objective_id)
-        if conversation_id:
+        decision = self._selected_or_conflict(
+            objective,
+            message,
+            "best_trigger_and_example_match",
+            candidates,
+        )
+        if conversation_id and decision.status == "selected":
             self.select_for_conversation(conversation_id, objective.objective_id)
-        return self._selected(objective, "best_trigger_and_example_match", candidates)
+        return decision
+
+    def _selected_or_conflict(
+        self,
+        objective: Objective,
+        message: str,
+        reason: str,
+        candidates: list[RoutingCandidate] | None = None,
+    ) -> RoutingDecision:
+        conflicts = _geography_conflicts(objective, message)
+        if conflicts:
+            return RoutingDecision(
+                status="objective_conflict",
+                objective_id=objective.objective_id,
+                agent_id=objective.agent_id,
+                reason="selected_objective_conflicts_with_request",
+                candidates=candidates or [],
+                conflicts=conflicts,
+                clarification_prompt=(
+                    f"{conflicts[0]} L'objectif actif est « {objective.name} ». "
+                    "Voulez-vous créer un nouvel objectif pour cette demande ?"
+                ),
+            )
+        return self._selected(objective, reason, candidates)
 
     def _selected(
         self,

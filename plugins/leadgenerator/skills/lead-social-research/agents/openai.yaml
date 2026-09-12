@@ -1,0 +1,12 @@
+interface:
+  display_name: "Recherche sur les réseaux sociaux"
+  short_description: "Lit les profils et publications via vos sessions locales approuvées."
+  default_prompt: "Utilise $lead-social-research pour rechercher les profils et publications liés à cette entreprise, sans aucune action d'écriture."
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "leadgenerator"
+      description: "Connecteurs sociaux locaux en lecture seule de Lead Generator"
+      transport: "stdio"
+policy:
+  allow_implicit_invocation: true

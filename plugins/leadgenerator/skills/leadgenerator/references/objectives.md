@@ -30,6 +30,18 @@ Resolve scope before any lead tool:
 Never guess between similarly plausible objectives. A clarification is a routing
 decision, not permission for research or an external action.
 
+When exactly one active objective exists, use it automatically. If the current
+request explicitly broadens or moves beyond a saved hard criterion such as its
+geography, return the concrete mismatch and ask whether to create a new objective.
+Do not silently rewrite the objective and do not replace the explanation with a
+list of unrelated names.
+
+An unmatched generic request such as « trouve-moi des leads dans l'industrie »
+must ask what the user sells without listing unrelated objective names. When the
+next answer plainly describes a new offer, create and select the new objective
+directly. Internal validation or test objectives are never useful choices merely
+because they are active.
+
 ## Documents and notes
 
 Every uploaded file or durable note is attached to exactly one objective. Store it

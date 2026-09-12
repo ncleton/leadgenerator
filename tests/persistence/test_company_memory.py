@@ -5,6 +5,7 @@ import stat
 
 import pytest
 from leadgenerator.persistence.company_memory import (
+    CompanyMemory,
     company_identity_key,
     write_visible_export,
 )
@@ -49,6 +50,26 @@ def test_company_identity_fallback_is_stable_and_does_not_expose_name():
     assert first_key == company_identity_key(second)
     assert first_key.startswith("fallback:")
     assert "exemple" not in first_key
+
+
+def test_company_memory_rejects_a_lead_without_an_objective():
+    memory = CompanyMemory(connect=lambda *_args, **_kwargs: None)
+    lead = LeadViewItem(id="company-1", company_name="Example Industries")
+
+    with pytest.raises(ValueError, match="objectif actif"):
+        memory.remember([lead], objective_id="")
+
+
+def test_company_memory_rejects_cross_objective_contamination():
+    memory = CompanyMemory(connect=lambda *_args, **_kwargs: None)
+    lead = LeadViewItem(
+        id="company-1",
+        company_name="Example Industries",
+        objective_id="objective-a",
+    )
+
+    with pytest.raises(ValueError, match="autre objectif"):
+        memory.remember([lead], objective_id="objective-b")
 
 
 def test_visible_export_keeps_current_card_and_complete_history(tmp_path):

@@ -9,13 +9,18 @@ from leadgenerator.mcp.server import (
     SERVER_INSTRUCTIONS,
     _enforce_allowed_host,
     _render_lead_explorer_tool,
+    _require_active_objective_id,
     check_lead_integrations,
+    check_social_connectors,
     get_lead_interface_mode,
     inspect_official_visuals,
     lead_explorer_ui,
+    query_authenticated_social_source,
+    record_lead_website_analysis,
     render_lead_explorer,
     render_lead_workspace,
     resolve_lead_objective,
+    save_lead_user_profile,
     scrape_public_page,
     search_companies_by_naf,
     search_french_companies,
@@ -50,6 +55,8 @@ from leadgenerator.ui.workspace import (
 from mcp.server.mcpserver.exceptions import ResourceError, ToolError
 from mcp.types import CallToolResult
 from playwright.sync_api import sync_playwright
+
+TEST_OBJECTIVE_ID = "test-objective"
 
 
 @pytest.fixture(autouse=True)
@@ -98,6 +105,20 @@ def default_chat_ui_mode(monkeypatch: pytest.MonkeyPatch):
         "leadgenerator.mcp.server.load_preferences",
         lambda: LeadGeneratorPreferences(interface_mode="chat_ui"),
     )
+    monkeypatch.setattr(
+        "leadgenerator.mcp.server.load_user_profile",
+        lambda: SimpleNamespace(
+            seller_name="Camille Martin",
+            seller_company="Example Conseil",
+            seller_website_url="https://example.com",
+            website_analysis=SimpleNamespace(),
+            model_dump=lambda **_kwargs: {},
+        ),
+    )
+    monkeypatch.setattr(
+        "leadgenerator.mcp.server._require_active_objective_id",
+        lambda objective_id: objective_id,
+    )
     monkeypatch.setattr("leadgenerator.mcp.server.company_memory", MemoryStub())
 
 
@@ -139,6 +160,101 @@ def test_mcp_tool_uses_user_selected_browser_mode(monkeypatch: pytest.MonkeyPatc
     assert calls == {"url": "https://example.com", "headless": False}
 
 
+def test_social_connector_status_is_exposed_without_reading_a_session(monkeypatch):
+    expected = {"connectors": {"opencli": {"state": "ready"}}}
+    monkeypatch.setattr(
+        "leadgenerator.mcp.server.read_social_connector_statuses",
+        lambda: expected,
+    )
+
+    assert check_social_connectors() == expected
+
+
+def test_authenticated_social_tool_is_objective_scoped_and_explicit(monkeypatch):
+    captured = {}
+
+    def fake_run(request, *, timeout):
+        captured.update(request=request, timeout=timeout)
+        return {
+            "objective_id": request.objective_id,
+            "platform": request.platform,
+            "operation": request.operation,
+        }
+
+    monkeypatch.setattr("leadgenerator.mcp.server.run_social_query", fake_run)
+
+    with pytest.raises(ToolError, match="explicitement autorisée"):
+        query_authenticated_social_source(
+            TEST_OBJECTIVE_ID,
+            "linkedin",
+            "search_people",
+            keywords="direction opérations",
+        )
+
+    result = query_authenticated_social_source(
+        TEST_OBJECTIVE_ID,
+        "linkedin",
+        "search_people",
+        keywords="direction opérations",
+        allow_authenticated_session=True,
+        timeout=240,
+    )
+
+    assert result == {
+        "objective_id": TEST_OBJECTIVE_ID,
+        "platform": "linkedin",
+        "operation": "search_people",
+    }
+    assert captured["request"].allow_authenticated_session is True
+    assert captured["timeout"] == 240
+
+
+def test_company_search_is_blocked_until_saved_website_was_analyzed(monkeypatch):
+    """Saving a URL alone must never unlock generic targeting assumptions."""
+    monkeypatch.setattr(
+        "leadgenerator.mcp.server.load_user_profile",
+        lambda: SimpleNamespace(
+            seller_website_url="https://example.com",
+            website_analysis=None,
+        ),
+    )
+
+    with pytest.raises(ToolError, match="pas encore été analysé"):
+        search_french_companies(TEST_OBJECTIVE_ID, query="industrie")
+
+    with pytest.raises(ToolError, match="pas encore été analysé"):
+        search_companies_by_naf("25.62B", TEST_OBJECTIVE_ID)
+
+
+def test_profile_flow_records_sourced_offer_analysis(monkeypatch, tmp_path):
+    """The MCP profile state stays blocked until a same-domain summary is stored."""
+    state = {"profile": None}
+
+    def fake_save(profile):
+        state["profile"] = profile
+        return tmp_path / "user-profile.json"
+
+    monkeypatch.setattr(
+        "leadgenerator.mcp.server.load_user_profile", lambda: state["profile"]
+    )
+    monkeypatch.setattr("leadgenerator.mcp.server.save_user_profile", fake_save)
+
+    saved = save_lead_user_profile(
+        seller_name="Camille Martin",
+        seller_company="Example Conseil",
+        seller_website_url="example.com",
+    )
+    recorded = record_lead_website_analysis(
+        offer_summary="Le site présente une offre B2B.",
+        source_urls=["https://example.com/", "https://example.com/offre"],
+    )
+
+    assert saved["next_action"] == "scrape_seller_website"
+    assert saved["website_analysis_required"] is True
+    assert recorded["next_action"] == "refine_objective_from_website_evidence"
+    assert recorded["website_analysis_required"] is False
+
+
 def test_visual_tool_keeps_same_company_scope(monkeypatch: pytest.MonkeyPatch):
     """Visual discovery cannot redirect the agent to another company domain."""
     monkeypatch.setenv("LEADGENERATOR_ALLOWED_HOST", "example.com")
@@ -174,7 +290,9 @@ def test_structured_company_search_returns_public_limitations(monkeypatch):
         ),
     )
 
-    result = search_french_companies(naf_codes=["62.01Z"], min_employees=300)
+    result = search_french_companies(
+        TEST_OBJECTIVE_ID, naf_codes=["62.01Z"], min_employees=300
+    )
 
     assert result["kind"] == "lead_results"
     assert result["initial_view"] == "naf_list"
@@ -201,8 +319,8 @@ def test_company_search_excludes_a_company_already_in_private_memory(monkeypatch
         ),
     )
 
-    first = search_french_companies(naf_codes=["62.01Z"])
-    second = search_french_companies(naf_codes=["62.01Z"])
+    first = search_french_companies(TEST_OBJECTIVE_ID, naf_codes=["62.01Z"])
+    second = search_french_companies(TEST_OBJECTIVE_ID, naf_codes=["62.01Z"])
 
     assert len(first["leads"]) == 1
     assert second["leads"] == []
@@ -226,9 +344,11 @@ def test_company_search_can_explicitly_include_a_remembered_company(monkeypatch)
         ),
     )
 
-    search_french_companies(naf_codes=["62.01Z"])
+    search_french_companies(TEST_OBJECTIVE_ID, naf_codes=["62.01Z"])
     repeated = search_french_companies(
-        naf_codes=["62.01Z"], include_previously_seen=True
+        TEST_OBJECTIVE_ID,
+        naf_codes=["62.01Z"],
+        include_previously_seen=True,
     )
 
     assert len(repeated["leads"]) == 1
@@ -259,7 +379,7 @@ def test_structured_company_search_becomes_text_ready_without_ui(monkeypatch):
         ),
     )
 
-    result = search_french_companies(query="Example")
+    result = search_french_companies(TEST_OBJECTIVE_ID, query="Example")
 
     assert result["kind"] == "lead_results"
     assert result["interface_enabled"] is False
@@ -291,9 +411,11 @@ def test_structured_company_search_keeps_employee_band_on_visual_card(monkeypatc
         ),
     )
 
-    result = search_french_companies(naf_codes=["62.01Z"])
+    result = search_french_companies(TEST_OBJECTIVE_ID, naf_codes=["62.01Z"])
 
     assert result["leads"][0]["employee_band_label"] == "20 à 49 salariés"
+    assert result["leads"][0]["objective_id"] == TEST_OBJECTIVE_ID
+    assert result["objective_id"] == TEST_OBJECTIVE_ID
 
 
 def test_structured_company_search_labels_a_matching_establishment(monkeypatch):
@@ -325,7 +447,11 @@ def test_structured_company_search_labels_a_matching_establishment(monkeypatch):
         ),
     )
 
-    result = search_french_companies(naf_codes=["45.11Z"], region="Hauts-de-France")
+    result = search_french_companies(
+        TEST_OBJECTIVE_ID,
+        naf_codes=["45.11Z"],
+        region="Hauts-de-France",
+    )
     lead = result["leads"][0]
 
     assert lead["location"]["label"] == "Établissement · 3 RUE ACTIVE 59000 LILLE"
@@ -363,7 +489,7 @@ def test_public_search_continues_when_company_memory_is_unavailable(monkeypatch)
         lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("offline")),
     )
 
-    result = search_french_companies(naf_codes=["45.11Z"])
+    result = search_french_companies(TEST_OBJECTIVE_ID, naf_codes=["45.11Z"])
 
     assert [lead["company_name"] for lead in result["leads"]] == ["AUTOMOBILE EXEMPLE"]
     assert result["memory"]["available"] is False
@@ -408,6 +534,7 @@ def test_server_instructions_require_objective_gate_and_real_ui_render():
     """The model cannot research first or merely claim that it rendered the app."""
     assert "before any search, browsing, or public research" in SERVER_INSTRUCTIONS
     assert "research_authorized=true" in SERVER_INSTRUCTIONS
+    assert "record_lead_website_analysis" in SERVER_INSTRUCTIONS
     assert "render_lead_explorer succeeds" in SERVER_INSTRUCTIONS
     assert "never claim that an explorer or workspace was displayed" in (
         SERVER_INSTRUCTIONS
@@ -425,7 +552,49 @@ def test_resolver_blocks_research_and_returns_the_objective_example(
 
     assert result["research_authorized"] is False
     assert result["next_action"] == "ask_clarification"
-    assert "Exemple" in result["decision"]["clarification_prompt"]
+    assert "bornes de recharge" in result["decision"]["clarification_prompt"]
+
+
+def test_resolver_turns_a_plain_offer_answer_into_a_new_objective_action(
+    monkeypatch, tmp_path
+):
+    """A new offer bypasses confusing menus of unrelated saved objectives."""
+    store = ObjectiveStore(tmp_path / "objectives")
+    store.create(
+        objective_id="validation-industrie",
+        name="Validation industrie Lille",
+        description="Ancien objectif de validation",
+        instructions="Conserver les preuves publiques.",
+    )
+    monkeypatch.setattr("leadgenerator.mcp.server.ObjectiveStore", lambda: store)
+
+    result = resolve_lead_objective("Je veux vendre des bornes de recharge")
+
+    assert result["research_authorized"] is False
+    assert result["next_action"] == "create_objective"
+    assert result["decision"]["candidates"] == []
+    assert result["decision"]["clarification_prompt"] is None
+
+
+def test_resolver_explains_a_single_objective_geography_conflict(monkeypatch, tmp_path):
+    """A sole objective is automatic unless the request explicitly changes scope."""
+    store = ObjectiveStore(tmp_path / "objectives")
+    store.create(
+        objective_id="industrie-lille",
+        name="Industrie Lille",
+        description="Prospecter les industriels lillois",
+        instructions="Conserver les preuves publiques.",
+        geography="Lille",
+    )
+    monkeypatch.setattr("leadgenerator.mcp.server.ObjectiveStore", lambda: store)
+
+    result = resolve_lead_objective("Trouve des industriels partout en France")
+
+    assert result["research_authorized"] is False
+    assert result["next_action"] == "ask_clarification"
+    assert result["decision"]["status"] == "objective_conflict"
+    assert "ne correspond pas" in result["decision"]["clarification_prompt"]
+    assert "créer un nouvel objectif" in result["decision"]["clarification_prompt"]
 
 
 def test_search_result_cannot_be_rendered_as_a_second_explorer(monkeypatch):
@@ -445,8 +614,8 @@ def test_search_result_cannot_be_rendered_as_a_second_explorer(monkeypatch):
         },
     )
 
-    search_result = search_french_companies(naf_codes=["68.31Z"])
-    naf_search_result = search_companies_by_naf("68.31Z")
+    search_result = search_french_companies(TEST_OBJECTIVE_ID, naf_codes=["68.31Z"])
+    naf_search_result = search_companies_by_naf("68.31Z", TEST_OBJECTIVE_ID)
     render_result = render_lead_explorer([], naf_code="68.31Z")
 
     assert search_result["kind"] == "lead_results"
@@ -465,6 +634,7 @@ def test_server_exposes_profiles_and_confirmed_action_boundaries():
     for name in (
         "get_lead_user_profile",
         "save_lead_user_profile",
+        "record_lead_website_analysis",
         "get_lead_interface_mode",
         "set_lead_interface_mode",
         "list_lead_offer_profiles",
@@ -489,6 +659,33 @@ def test_server_exposes_profiles_and_confirmed_action_boundaries():
         assert name in tools
     assert "confirm_paid_lookup=true" in tools["submit_contact_enrichment"].description
     assert "confirm_hubspot_write=true" in tools["sync_hubspot_contacts"].description
+    assert "objective_id" in tools["search_french_companies"].input_schema["required"]
+    assert "objective_id" in tools["search_companies_by_naf"].input_schema["required"]
+    assert "objective_id" in tools["render_lead_explorer"].input_schema["required"]
+    assert (
+        "active_objective_id" in tools["render_lead_workspace"].input_schema["required"]
+    )
+
+
+def test_objective_gate_accepts_only_an_active_persisted_objective(
+    monkeypatch, tmp_path
+):
+    store = ObjectiveStore(tmp_path / "objectives")
+    store.create(
+        objective_id="objective-a",
+        name="Objective A",
+        description="Prospecter une cible test",
+        instructions="Conserver les preuves.",
+    )
+    monkeypatch.setattr("leadgenerator.mcp.server.ObjectiveStore", lambda: store)
+
+    assert _require_active_objective_id("objective-a") == "objective-a"
+
+    store.archive("objective-a")
+    with pytest.raises(ToolError, match="archivé"):
+        _require_active_objective_id("objective-a")
+    with pytest.raises(ToolError, match="inconnu ou invalide"):
+        _require_active_objective_id("missing-objective")
 
 
 def test_agent_can_read_and_change_interface_mode(monkeypatch, tmp_path):
@@ -1133,12 +1330,16 @@ def test_registered_render_tool_does_not_duplicate_payload_in_text_content():
     """The model-facing text stays small while the app receives structured data."""
     lead = LeadViewItem(id="example", company_name="Example")
 
-    result = _render_lead_explorer_tool([lead])
+    result = _render_lead_explorer_tool([lead], TEST_OBJECTIVE_ID)
 
     assert isinstance(result, CallToolResult)
     assert result.content[0].text == "Lead Generator prêt : 1 entreprise à parcourir."
     assert result.structured_content["leads"] == [
-        {"id": "example", "company_name": "Example"}
+        {
+            "id": "example",
+            "company_name": "Example",
+            "objective_id": TEST_OBJECTIVE_ID,
+        }
     ]
     assert "company_name" not in result.content[0].text
 

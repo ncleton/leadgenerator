@@ -76,6 +76,47 @@ def test_only_objective_is_automatic_for_lead_work(tmp_path: Path):
     assert unrelated_decision.status == "not_applicable"
 
 
+def test_only_objective_explains_an_explicit_geography_conflict(tmp_path: Path):
+    store = ObjectiveStore(tmp_path / "objectives")
+    store.create(
+        objective_id="industrie-lille",
+        name="Industrie Lille",
+        description="Prospecter les industriels autour de Lille",
+        instructions="Qualifier les prospects.",
+        geography="Lille",
+    )
+
+    decision = store.route("Trouve-moi des leads industriels dans toute la France")
+
+    assert decision.status == "objective_conflict"
+    assert decision.reason == "selected_objective_conflicts_with_request"
+    assert decision.objective_id == "industrie-lille"
+    assert decision.conflicts == [
+        (
+            "La localisation demandée (france) ne correspond pas à la localisation "
+            "enregistrée (Lille)."
+        )
+    ]
+    assert "Voulez-vous créer un nouvel objectif" in decision.clarification_prompt
+
+
+def test_only_narrowing_a_national_objective_does_not_require_a_choice(tmp_path: Path):
+    store = ObjectiveStore(tmp_path / "objectives")
+    store.create(
+        objective_id="industrie-france",
+        name="Industrie France",
+        description="Prospecter les industriels en France",
+        instructions="Qualifier les prospects.",
+        geography="France",
+    )
+
+    decision = store.route("Trouve-moi des leads industriels à Lille")
+
+    assert decision.status == "selected"
+    assert decision.objective_id == "industrie-france"
+    assert decision.reason == "only_objective_for_lead_work"
+
+
 def test_industrial_request_is_recognized_without_the_word_lead(tmp_path: Path):
     """The natural starter wording must enter the configured lead workflow."""
     store = ObjectiveStore(tmp_path / "objectives")
@@ -130,8 +171,8 @@ def test_no_objective_and_no_match_are_explicit_states(tmp_path: Path):
 
     assert unconfigured.status == "unconfigured"
     assert unconfigured.clarification_prompt == OBJECTIVE_SETUP_PROMPT
-    assert "Exemple" in unconfigured.clarification_prompt
-    assert "maintenance prédictive" in unconfigured.clarification_prompt
+    assert "Une phrase suffit" in unconfigured.clarification_prompt
+    assert "bornes de recharge" in unconfigured.clarification_prompt
 
     configured = _create_two_objectives(tmp_path)
     decision = configured.route("Rédige un haïku sur la pluie")
@@ -146,7 +187,28 @@ def test_generic_lead_work_requires_an_objective_choice(tmp_path: Path):
 
     assert decision.status == "ambiguous"
     assert decision.reason == "lead_work_without_matching_objective"
-    assert decision.clarification_prompt == (
-        "Quel objectif faut-il utiliser pour cette recherche ? Choisissez parmi : "
-        "Construction, Restauration, ou décrivez un nouvel objectif."
-    )
+    assert decision.candidates == []
+    assert decision.clarification_prompt == OBJECTIVE_SETUP_PROMPT
+    assert "Construction" not in decision.clarification_prompt
+    assert "Restauration" not in decision.clarification_prompt
+
+
+def test_plain_offer_answer_requests_a_new_objective_without_old_names(tmp_path: Path):
+    store = _create_two_objectives(tmp_path)
+
+    decision = store.route("Je veux vendre des bornes de recharge")
+
+    assert decision.status == "new_objective"
+    assert decision.reason == "new_offer_without_selected_objective"
+    assert decision.candidates == []
+    assert decision.clarification_prompt is None
+
+
+def test_explicit_new_objective_request_overrides_a_sticky_selection(tmp_path: Path):
+    store = _create_two_objectives(tmp_path)
+    store.select_for_conversation("thread-123", "construction")
+
+    decision = store.route("nouvel objectif", conversation_id="thread-123")
+
+    assert decision.status == "new_objective"
+    assert decision.reason == "explicit_new_objective_request"
