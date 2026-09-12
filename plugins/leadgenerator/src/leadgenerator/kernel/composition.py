@@ -248,7 +248,7 @@ def discover_native_manifests() -> dict[str, PluginManifest]:
             raise CompositionError(f"Native plugin integrity check failed: {relative}")
     manifests: dict[str, PluginManifest] = {}
     for path in sorted(NATIVE_CATALOG_ROOT.glob("*/plugin.yaml")):
-        relative = str(path.relative_to(NATIVE_CATALOG_ROOT))
+        relative = path.relative_to(NATIVE_CATALOG_ROOT).as_posix()
         if relative not in expected_files:
             raise CompositionError(f"Uncatalogued native plugin manifest: {relative}")
         manifest = PluginManifest.load(path)

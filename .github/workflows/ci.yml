@@ -59,6 +59,9 @@ jobs:
           }
       - run: uv sync --project plugins/leadgenerator --frozen
       - name: Test Windows installation and runtime contracts
+        # The runtime suite exercises native MCP Apps in a real browser.
+        run: uv run --project plugins/leadgenerator playwright install chromium
+      - name: Run Windows installation and runtime contracts
         run: >-
           uv run --project plugins/leadgenerator pytest
           -c plugins/leadgenerator/pyproject.toml

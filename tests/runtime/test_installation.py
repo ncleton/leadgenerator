@@ -27,6 +27,14 @@ def load_verifier():
     return module
 
 
+def test_native_catalog_bootstraps_on_current_platform():
+    """Catalog keys stay POSIX regardless of the host filesystem separator."""
+    from leadgenerator.kernel.composition import discover_native_manifests
+    from leadgenerator.native.defaults import DEFAULT_PLUGIN_IDS
+
+    assert set(discover_native_manifests()) == set(DEFAULT_PLUGIN_IDS)
+
+
 def test_installer_verifier_rejects_failed_or_unstructured_tool_results():
     """A broken MCP stage must fail loudly instead of reporting installation success."""
     verifier = load_verifier()
