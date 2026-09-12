@@ -1,0 +1,19 @@
+apiVersion: leadgenerator.yaka/v1
+kind: Plugin
+metadata:
+  id: yaka.scorecard
+  version: 1.0.0
+  tier: native
+spec:
+  requiresSdk: ">=1.0.0,<2.0.0"
+  runtime: python
+  entrypoint: leadgenerator.native.activators:activate_scorecard
+  provides: [scorecard]
+  requires: [observations]
+  contributes:
+    - registry: score.dimensions
+      ids: [generic]
+  permissions: {}
+  configuration:
+    schema: config.schema.json
+  healthCheck: services

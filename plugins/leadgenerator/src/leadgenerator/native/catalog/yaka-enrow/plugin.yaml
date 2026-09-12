@@ -1,0 +1,22 @@
+apiVersion: leadgenerator.yaka/v1
+kind: Plugin
+metadata:
+  id: yaka.enrow
+  version: 1.0.0
+  tier: native
+spec:
+  requiresSdk: ">=1.0.0,<2.0.0"
+  runtime: python
+  entrypoint: leadgenerator.native.activators:activate_enrow
+  provides: [enrichment.enrow]
+  requires: [observations, approvals]
+  contributes:
+    - registry: workflow.steps
+      ids: [enrichment.enrow]
+  permissions:
+    network: [api.enrow.io]
+    secrets: [ENROW_API_KEY]
+    paidReads: true
+  configuration:
+    schema: config.schema.json
+  healthCheck: services

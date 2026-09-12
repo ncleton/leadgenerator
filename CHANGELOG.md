@@ -11,8 +11,25 @@ All notable changes to Lead Generator are documented here. The project follows
   Reddit, Facebook, and Instagram, with explicit per-call approval, objective
   scoping, backend diagnostics, provenance, and no social write operations.
 
+- Share the canonical runtime with Claude through portable packages and local
+  project bootstrap templates, with guarded Desktop registration.
+- Add a modular plugin kernel, customization SDK, objective management and
+  scheduling preferences, and a guided Windows installer.
+- Add scoped host-browser LinkedIn observations, safer image policies and
+  lossless private company projection merges.
+
+### Changed
+
+- Replace detailed-map duplication with IGN satellite imagery and use IGN plan
+  tiles for the standard map.
+- Keep sourcing volume configurable in local preferences.
+
 ### Fixed
 
+- Require sourced coordinates for every explorer lead before rendering or
+  persistence; label approximate positions and suppress misleading aerial focus.
+- Preserve native MCP Apps negotiation, contact navigation and delayed hydration
+  across supported hosts without claiming unsupported display capabilities.
 - Replace unrelated objective menus with a concise offer question, create a new
   objective directly from a clear selling intent, and let an explicit new-objective
   request override a stale conversation selection.
@@ -22,8 +39,9 @@ All notable changes to Lead Generator are documented here. The project follows
   before company search tools accept targeting filters.
 - Require an active objective ID on every company search and persisted UI refresh,
   and store it in the lead payload, company relation, and immutable snapshot.
-- Keep authenticated social sessions local to their browser backends and never
-  request credentials, MFA codes, cookies, or exported sessions in chat.
+- Respond explicitly to authenticated LinkedIn or cookie-reuse requests without
+  collecting credentials or sessions, then continue through public sources under
+  the active objective.
 - Block lead sourcing until a persistent commercial objective is selected, and
   return a concrete setup example when none exists.
 - Require the actual MCP Apps explorer render in `chat_ui` mode and prohibit

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Literal
+from urllib.parse import urlparse
 
 from pydantic import Field, model_validator
 
@@ -14,6 +16,7 @@ from leadgenerator.research.company_research import (
     normalize_company_name,
     normalize_research_text,
 )
+from leadgenerator.research.url_safety import validate_public_url
 
 
 class ObjectiveRoleCriteria(StrictModel):
@@ -27,6 +30,32 @@ class ObjectiveRoleCriteria(StrictModel):
     excluded_roles: list[str] = Field(default_factory=list, max_length=30)
 
 
+class PublicProfessionalPost(StrictModel):
+    """A dated professional excerpt with explicit public or browser provenance."""
+
+    summary: str = Field(min_length=1, max_length=1_200)
+    source_url: str = Field(max_length=2_000)
+    person_name: str = Field(min_length=1, max_length=300)
+    company_name: str | None = Field(default=None, max_length=300)
+    published_on: date | None = None
+    observed_on: date
+    platform: str = Field(default="public_web", min_length=1, max_length=80)
+    access_mode: Literal["public_page", "public_search_result", "authenticated_browser"]
+
+    @model_validator(mode="after")
+    def source_has_explicit_access_mode(self) -> "PublicProfessionalPost":
+        self.source_url = validate_public_url(self.source_url)
+        hostname = (urlparse(self.source_url).hostname or "").lower().rstrip(".")
+        if (hostname == "linkedin.com" or hostname.endswith(".linkedin.com")) and (
+            self.access_mode not in {"public_search_result", "authenticated_browser"}
+        ):
+            raise ValueError(
+                "LinkedIn posts require public_search_result or an explicitly "
+                "observed authenticated_browser source."
+            )
+        return self
+
+
 class PublicContactCandidate(StrictModel):
     """A public professional identity, without provider-enriched coordinates."""
 
@@ -37,11 +66,32 @@ class PublicContactCandidate(StrictModel):
     public_profile_url: str | None = Field(default=None, pattern=r"^https?://")
     profile_image_url: str | None = Field(default=None, pattern=r"^https?://")
     profile_image_evidence: PublicEvidence | None = None
+    profile_summary: str | None = Field(default=None, max_length=2_000)
+    recent_posts: list[PublicProfessionalPost] = Field(
+        default_factory=list, max_length=5
+    )
     evidence: list[PublicEvidence] = Field(default_factory=list, max_length=30)
 
     @model_validator(mode="after")
     def validate_profile_image_evidence(self) -> PublicContactCandidate:
-        """Never attach a person's image without exact-name public evidence."""
+        """Require exact identity and explicit browser provenance for LinkedIn images."""
+        person = normalize_research_text(self.full_name)
+        company = normalize_company_name(self.company_name)
+        for post in self.recent_posts:
+            if normalize_research_text(post.person_name) != person:
+                raise ValueError("Une publication doit correspondre au contact exact.")
+            if (
+                post.company_name
+                and normalize_company_name(post.company_name) != company
+            ):
+                raise ValueError(
+                    "Une publication mentionne une autre entreprise que le contact."
+                )
+        self.recent_posts = sorted(
+            self.recent_posts,
+            key=lambda row: (row.published_on or date.min, row.observed_on),
+            reverse=True,
+        )
         if self.profile_image_url and not self.profile_image_evidence:
             raise ValueError("Une photo de profil doit conserver sa preuve publique.")
         if not self.profile_image_evidence:
@@ -50,11 +100,27 @@ class PublicContactCandidate(StrictModel):
         exact_name = normalize_research_text(image_evidence.person_name or "") == (
             normalize_research_text(self.full_name)
         )
-        if not exact_name or image_evidence.is_linkedin:
-            raise ValueError(
-                "La preuve de photo doit correspondre exactement au nom et ne peut "
-                "pas provenir de LinkedIn."
+        if not exact_name:
+            raise ValueError("La preuve de photo doit correspondre exactement au nom.")
+        if image_evidence.is_linkedin:
+            from leadgenerator.research.linkedin_session import (
+                validate_linkedin_browser_url,
             )
+
+            source = validate_linkedin_browser_url(image_evidence.source_url)
+            profile = validate_linkedin_browser_url(self.linkedin_url or "")
+            if (
+                image_evidence.access_mode != "authenticated_browser"
+                or not urlparse(source).path.startswith("/in/")
+                or source.rstrip("/") != profile.rstrip("/")
+                or image_evidence.asset_url != self.profile_image_url
+                or normalize_company_name(image_evidence.company_name or "") != company
+            ):
+                raise ValueError(
+                    "Une photo LinkedIn exige le profil exact, l'entreprise et l'URL d'image observés dans le navigateur connecté."
+                )
+        if self.profile_image_url:
+            self.profile_image_url = validate_public_url(self.profile_image_url)
         return self
 
 
@@ -79,6 +145,29 @@ class BestContactSelection(StrictModel):
     selected: ContactAssessment | None = None
     alternatives: list[ContactAssessment] = Field(default_factory=list)
     reason: str
+
+
+class RankedContactProfile(StrictModel):
+    """One of at most five profiles, ordered by explicit role and evidence score."""
+
+    rank: int = Field(ge=1, le=5)
+    assessment: ContactAssessment
+
+
+class PublicProfileRanking(StrictModel):
+    """Coverage-aware top-five result for one exact company and objective."""
+
+    status: Literal["complete", "partial", "no_match"]
+    discovered_count: int = Field(ge=0)
+    reviewed_count: int = Field(ge=0)
+    profiles: list[RankedContactProfile] = Field(default_factory=list, max_length=5)
+    coverage_note: str = Field(min_length=1, max_length=1_000)
+
+    @model_validator(mode="after")
+    def coverage_is_consistent(self) -> "PublicProfileRanking":
+        if self.reviewed_count > self.discovered_count:
+            raise ValueError("Reviewed profiles cannot exceed discovered profiles.")
+        return self
 
 
 def _phrase_matches(role: str, phrase: str) -> bool:
@@ -273,4 +362,43 @@ def select_best_contact(
         selected=best,
         alternatives=eligible[1:],
         reason="Le meilleur contact validé correspond sans ambiguïté à l'objectif.",
+    )
+
+
+def rank_best_contact_profiles(
+    candidates: list[PublicContactCandidate],
+    company: CompanyIdentity,
+    criteria: ObjectiveRoleCriteria,
+    *,
+    discovered_count: int,
+    coverage_note: str,
+    limit: int = 5,
+) -> PublicProfileRanking:
+    """Return the five strongest reviewable profiles with honest coverage."""
+    if discovered_count < len(candidates):
+        raise ValueError(
+            "Discovered profiles cannot be fewer than reviewed candidates."
+        )
+    if not 1 <= limit <= 5:
+        raise ValueError("Le nombre de profils classés doit être compris entre 1 et 5.")
+    reviewed = rank_contact_candidates(candidates, company, criteria)
+    eligible = [row for row in reviewed if row.status != "rejected"][:limit]
+    profiles = [
+        RankedContactProfile(rank=index, assessment=row)
+        for index, row in enumerate(eligible, start=1)
+    ]
+    if not profiles:
+        status = "no_match"
+    elif len(candidates) == discovered_count and all(
+        row.assessment.status == "validated" for row in profiles
+    ):
+        status = "complete"
+    else:
+        status = "partial"
+    return PublicProfileRanking(
+        status=status,
+        discovered_count=discovered_count,
+        reviewed_count=len(candidates),
+        profiles=profiles,
+        coverage_note=coverage_note,
     )

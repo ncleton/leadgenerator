@@ -1,0 +1,20 @@
+apiVersion: leadgenerator.yaka/v1
+kind: Plugin
+metadata:
+  id: yaka.linkedin-public
+  version: 1.0.0
+  tier: native
+spec:
+  requiresSdk: ">=1.0.0,<2.0.0"
+  runtime: python
+  entrypoint: leadgenerator.native.activators:activate_linkedin_public
+  provides: [linkedin.public]
+  requires: [observations, public-web]
+  contributes:
+    - registry: research.sources
+      ids: [linkedin.public]
+  permissions:
+    network: [public-http-https]
+  configuration:
+    schema: config.schema.json
+  healthCheck: services

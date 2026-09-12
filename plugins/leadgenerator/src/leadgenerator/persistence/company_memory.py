@@ -11,7 +11,6 @@ import hashlib
 import json
 import os
 import re
-import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Iterable
@@ -20,13 +19,33 @@ from urllib.parse import urlparse
 import psycopg
 from psycopg.types.json import Jsonb
 
-from leadgenerator.ui.models import LeadViewItem
+from leadgenerator.kernel.contracts import (
+    Evidence,
+    Observation,
+    ProspectOutcome,
+    ScoreContribution,
+)
+from leadgenerator.kernel.errors import LeadGeneratorKernelError
+from leadgenerator.kernel.legacy_adapter import (
+    canonical_company_subject_id,
+    project_legacy_leads,
+)
+from leadgenerator.persistence.projection_merge import (
+    PROJECTION_VERSION_KEY,
+    merge_projection,
+)
+from leadgenerator.ui.models import LeadViewItem, scope_lead
 
 DATABASE_URL_ENV = "LEADGENERATOR_DATABASE_URL"
 DEFAULT_DATABASE_URL = "postgresql:///leadgenerator"
 SCHEMA = "leadgenerator_private"
 TABLE = f"{SCHEMA}.companies"
 SNAPSHOT_TABLE = f"{SCHEMA}.company_snapshots"
+EVIDENCE_TABLE = f"{SCHEMA}.evidence"
+OBSERVATION_TABLE = f"{SCHEMA}.observations"
+SCORE_TABLE = f"{SCHEMA}.score_contributions"
+OUTCOME_TABLE = f"{SCHEMA}.prospect_outcomes"
+PLUGIN_STATE_TABLE = f"{SCHEMA}.plugin_state"
 PRIVATE_HOME = Path.home() / ".codex" / "leadgenerator"
 
 
@@ -37,15 +56,7 @@ class CompanyMemoryResult:
     new_keys: frozenset[str]
     existing_keys: frozenset[str]
     stored_count: int
-
-
-def _normalized_company_name(value: str) -> str:
-    """Return a stable, accent-insensitive company label for the last fallback."""
-    decomposed = unicodedata.normalize("NFKD", value)
-    ascii_value = "".join(
-        char for char in decomposed if not unicodedata.combining(char)
-    )
-    return " ".join(ascii_value.casefold().split())
+    leads: tuple[LeadViewItem, ...] = ()
 
 
 def _website_domain(value: str | None) -> str | None:
@@ -61,19 +72,9 @@ def _website_domain(value: str | None) -> str | None:
 
 def company_identity_key(lead: LeadViewItem) -> str:
     """Build the strongest available non-secret identity for a company card."""
-    if lead.siren:
-        return f"siren:{lead.siren}"
-    if domain := _website_domain(lead.website_url):
-        return f"domain:{domain}"
-
-    # Some imported cards may lack both legal and web identities. Keep them
-    # rememberable without placing the raw name in an index or identifier.
-    location = lead.location.label if lead.location else ""
-    material = "|".join(
-        (_normalized_company_name(lead.company_name), lead.naf_code or "", location)
+    return canonical_company_subject_id(
+        lead.model_dump(mode="json", exclude_none=True, exclude_defaults=True)
     )
-    digest = hashlib.sha256(material.encode("utf-8")).hexdigest()
-    return f"fallback:{digest}"
 
 
 def _payload_hash(payload: Any) -> str:
@@ -92,6 +93,32 @@ def _safe_limit(value: int) -> int:
     if not 1 <= value <= 200:
         raise ValueError("La limite doit être comprise entre 1 et 200.")
     return value
+
+
+def _subject_id_aliases(value: str) -> list[str]:
+    """Read canonical SIREN subjects together with pre-SDK compatibility rows."""
+    normalized = value.strip()
+    if re.fullmatch(r"siren:\d{9}", normalized):
+        return [normalized, normalized.removeprefix("siren:")]
+    if re.fullmatch(r"\d{9}", normalized):
+        return [f"siren:{normalized}", normalized]
+    return [normalized]
+
+
+def _workspace_evidence_ids(
+    observations: Iterable[dict[str, Any]],
+    scores: Iterable[dict[str, Any]],
+) -> list[str]:
+    """Return every proof referenced by an observation or score contribution."""
+    return sorted(
+        {
+            str(reference)
+            for records in (observations, scores)
+            for record in records
+            for reference in record.get("evidence_refs", [])
+            if reference
+        }
+    )
 
 
 def _private_export_directory(value: str | Path) -> Path:
@@ -262,6 +289,64 @@ class CompanyMemory:
                 ON {SNAPSHOT_TABLE} (company_key, captured_at DESC)
                 """)
             cursor.execute(f"""
+                CREATE TABLE IF NOT EXISTS {EVIDENCE_TABLE} (
+                    evidence_id TEXT PRIMARY KEY,
+                    payload JSONB NOT NULL,
+                    payload_sha256 CHAR(64) NOT NULL,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """)
+            cursor.execute(f"""
+                CREATE TABLE IF NOT EXISTS {OBSERVATION_TABLE} (
+                    observation_id TEXT PRIMARY KEY,
+                    subject_type TEXT NOT NULL,
+                    subject_id TEXT NOT NULL,
+                    objective_id TEXT NOT NULL,
+                    kind TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    plugin_id TEXT NOT NULL,
+                    plugin_version TEXT NOT NULL,
+                    payload JSONB NOT NULL,
+                    payload_sha256 CHAR(64) NOT NULL,
+                    invalidated_by TEXT,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """)
+            cursor.execute(f"""
+                CREATE INDEX IF NOT EXISTS leadgenerator_observations_subject_index
+                ON {OBSERVATION_TABLE} (subject_id, objective_id, created_at DESC)
+                """)
+            cursor.execute(f"""
+                CREATE TABLE IF NOT EXISTS {SCORE_TABLE} (
+                    contribution_id BIGSERIAL PRIMARY KEY,
+                    subject_id TEXT NOT NULL,
+                    objective_id TEXT NOT NULL,
+                    payload JSONB NOT NULL,
+                    payload_sha256 CHAR(64) NOT NULL,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE (subject_id, objective_id, payload_sha256)
+                )
+                """)
+            cursor.execute(f"""
+                CREATE TABLE IF NOT EXISTS {OUTCOME_TABLE} (
+                    outcome_id BIGSERIAL PRIMARY KEY,
+                    company_id TEXT NOT NULL,
+                    objective_id TEXT NOT NULL,
+                    payload JSONB NOT NULL,
+                    payload_sha256 CHAR(64) NOT NULL UNIQUE,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """)
+            cursor.execute(f"""
+                CREATE TABLE IF NOT EXISTS {PLUGIN_STATE_TABLE} (
+                    plugin_id TEXT PRIMARY KEY,
+                    version TEXT NOT NULL,
+                    state TEXT NOT NULL,
+                    migration_version TEXT,
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """)
+            cursor.execute(f"""
                 SELECT company.company_key, company.lead_payload
                 FROM {TABLE} AS company
                 WHERE NOT EXISTS (
@@ -283,6 +368,202 @@ class CompanyMemory:
         connection.commit()
         self._schema_ready = True
 
+    def record_observation_batch(
+        self,
+        *,
+        evidence: Iterable[Evidence] = (),
+        observations: Iterable[Observation] = (),
+        scores: Iterable[tuple[str, str, ScoreContribution]] = (),
+    ) -> dict[str, int]:
+        """Persist one immutable, evidence-checked plugin output transaction."""
+        evidence_rows = list(evidence)
+        observation_rows = list(observations)
+        score_rows = list(scores)
+        supplied_evidence = {row.evidence_id for row in evidence_rows}
+        referenced = {ref for row in observation_rows for ref in row.evidence_refs} | {
+            ref for _subject, _objective, row in score_rows for ref in row.evidence_refs
+        }
+        with self._connection() as connection:
+            self._ensure_schema(connection)
+            with connection.cursor() as cursor:
+                if referenced - supplied_evidence:
+                    cursor.execute(
+                        f"SELECT evidence_id FROM {EVIDENCE_TABLE} "
+                        "WHERE evidence_id = ANY(%s)",
+                        (list(referenced - supplied_evidence),),
+                    )
+                    known = {str(row[0]) for row in cursor.fetchall()}
+                    missing = referenced - supplied_evidence - known
+                    if missing:
+                        raise LeadGeneratorKernelError(
+                            "Verified plugin output references unknown evidence."
+                        )
+                for row in evidence_rows:
+                    payload = row.model_dump(mode="json")
+                    digest = _payload_hash(payload)
+                    cursor.execute(
+                        f"""
+                        INSERT INTO {EVIDENCE_TABLE}
+                            (evidence_id, payload, payload_sha256)
+                        VALUES (%s, %s, %s)
+                        ON CONFLICT (evidence_id) DO NOTHING
+                        """,
+                        (row.evidence_id, Jsonb(payload), digest),
+                    )
+                    cursor.execute(
+                        f"SELECT payload_sha256 FROM {EVIDENCE_TABLE} "
+                        "WHERE evidence_id = %s",
+                        (row.evidence_id,),
+                    )
+                    if str(cursor.fetchone()[0]) != digest:
+                        raise LeadGeneratorKernelError(
+                            "Evidence identifiers are immutable."
+                        )
+                for row in observation_rows:
+                    payload = row.model_dump(mode="json")
+                    digest = _payload_hash(payload)
+                    cursor.execute(
+                        f"""
+                        INSERT INTO {OBSERVATION_TABLE} (
+                            observation_id, subject_type, subject_id, objective_id,
+                            kind, status, plugin_id, plugin_version, payload,
+                            payload_sha256
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (observation_id) DO NOTHING
+                        """,
+                        (
+                            row.observation_id,
+                            row.subject_type,
+                            row.subject_id,
+                            row.objective_id,
+                            row.kind,
+                            row.status,
+                            row.plugin_id,
+                            row.plugin_version,
+                            Jsonb(payload),
+                            digest,
+                        ),
+                    )
+                    cursor.execute(
+                        f"SELECT payload_sha256 FROM {OBSERVATION_TABLE} "
+                        "WHERE observation_id = %s",
+                        (row.observation_id,),
+                    )
+                    if str(cursor.fetchone()[0]) != digest:
+                        raise LeadGeneratorKernelError(
+                            "Observation identifiers are immutable."
+                        )
+                for subject_id, objective_id, row in score_rows:
+                    payload = row.model_dump(mode="json")
+                    cursor.execute(
+                        f"""
+                        INSERT INTO {SCORE_TABLE} (
+                            subject_id, objective_id, payload, payload_sha256
+                        ) VALUES (%s, %s, %s, %s)
+                        ON CONFLICT (subject_id, objective_id, payload_sha256)
+                        DO NOTHING
+                        """,
+                        (
+                            subject_id,
+                            objective_id,
+                            Jsonb(payload),
+                            _payload_hash(payload),
+                        ),
+                    )
+            connection.commit()
+        return {
+            "evidence": len(evidence_rows),
+            "observations": len(observation_rows),
+            "scores": len(score_rows),
+        }
+
+    def record_outcome(self, outcome: ProspectOutcome) -> None:
+        """Store human feedback without mutating any previous outcome."""
+        payload = outcome.model_dump(mode="json")
+        with self._connection() as connection:
+            self._ensure_schema(connection)
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    f"""
+                    INSERT INTO {OUTCOME_TABLE} (
+                        company_id, objective_id, payload, payload_sha256
+                    ) VALUES (%s, %s, %s, %s)
+                    ON CONFLICT (payload_sha256) DO NOTHING
+                    """,
+                    (
+                        outcome.company_id,
+                        outcome.objective_id,
+                        Jsonb(payload),
+                        _payload_hash(payload),
+                    ),
+                )
+            connection.commit()
+
+    def workspace_records(
+        self, subject_id: str, *, objective_id: str
+    ) -> dict[str, list[dict[str, Any]]]:
+        """Read canonical observations, evidence and scores for one projection."""
+        subject_ids = _subject_id_aliases(subject_id)
+        with self._connection() as connection:
+            self._ensure_schema(connection)
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    f"""
+                    SELECT payload FROM {OBSERVATION_TABLE}
+                    WHERE subject_id = ANY(%s) AND objective_id = %s
+                      AND invalidated_by IS NULL
+                    ORDER BY created_at, observation_id
+                    """,
+                    (subject_ids, objective_id),
+                )
+                observations = [row[0] for row in cursor.fetchall()]
+                cursor.execute(
+                    f"""
+                    SELECT payload FROM {SCORE_TABLE}
+                    WHERE subject_id = ANY(%s) AND objective_id = %s
+                    ORDER BY created_at, contribution_id
+                    """,
+                    (subject_ids, objective_id),
+                )
+                scores = [row[0] for row in cursor.fetchall()]
+                evidence_ids = _workspace_evidence_ids(observations, scores)
+                if evidence_ids:
+                    cursor.execute(
+                        f"SELECT payload FROM {EVIDENCE_TABLE} "
+                        "WHERE evidence_id = ANY(%s) ORDER BY evidence_id",
+                        (evidence_ids,),
+                    )
+                    evidence = [row[0] for row in cursor.fetchall()]
+                else:
+                    evidence = []
+        return {"observations": observations, "evidence": evidence, "scores": scores}
+
+    def record_plugin_state(
+        self,
+        plugin_id: str,
+        version: str,
+        state: str,
+        migration_version: str | None = None,
+    ) -> None:
+        """Record a successful health-checked plugin version and migration."""
+        with self._connection() as connection:
+            self._ensure_schema(connection)
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    f"""
+                    INSERT INTO {PLUGIN_STATE_TABLE} (
+                        plugin_id, version, state, migration_version
+                    ) VALUES (%s, %s, %s, %s)
+                    ON CONFLICT (plugin_id) DO UPDATE SET
+                        version = EXCLUDED.version,
+                        state = EXCLUDED.state,
+                        migration_version = EXCLUDED.migration_version,
+                        updated_at = CURRENT_TIMESTAMP
+                    """,
+                    (plugin_id, version, state, migration_version),
+                )
+            connection.commit()
+
     def remember(
         self,
         leads: Iterable[LeadViewItem],
@@ -298,15 +579,7 @@ class CompanyMemory:
             raise ValueError(
                 "Chaque entreprise mémorisée doit appartenir à un objectif actif."
             )
-        scoped_leads = []
-        for lead in leads:
-            if lead.objective_id not in {None, objective_id}:
-                raise ValueError("Un lead appartient à un autre objectif actif.")
-            scoped_leads.append(
-                lead.model_copy(update={"objective_id": objective_id})
-                if lead.objective_id is None
-                else lead
-            )
+        scoped_leads = [scope_lead(lead, objective_id) for lead in leads]
         requested_rows = [(company_identity_key(lead), lead) for lead in scoped_leads]
         if not requested_rows:
             return CompanyMemoryResult(frozenset(), frozenset(), self.count())
@@ -334,24 +607,61 @@ class CompanyMemory:
                 stored_rows = cursor.fetchall()
                 by_key = {str(row[0]): str(row[0]) for row in stored_rows}
                 by_siren = {str(row[1]): str(row[0]) for row in stored_rows if row[1]}
-                by_domain = {str(row[2]): str(row[0]) for row in stored_rows if row[2]}
+                by_domain: dict[str, list[tuple[str, str | None]]] = {}
+                for row in stored_rows:
+                    if row[2]:
+                        by_domain.setdefault(str(row[2]), []).append(
+                            (str(row[0]), row[1])
+                        )
                 existing_requested: set[str] = set()
                 resolved_rows = []
                 for requested_key, lead in requested_rows:
                     domain = _website_domain(lead.website_url)
+                    compatible_domains = [
+                        key
+                        for key, siren in by_domain.get(domain, [])
+                        if not (lead.siren and siren and lead.siren != siren)
+                    ]
                     stored_key = (
                         by_key.get(requested_key)
                         or (by_siren.get(lead.siren) if lead.siren else None)
-                        or (by_domain.get(domain) if domain else None)
+                        or (
+                            compatible_domains[0]
+                            if len(compatible_domains) == 1
+                            else None
+                        )
                     )
                     if stored_key:
                         existing_requested.add(requested_key)
                     resolved_rows.append((stored_key or requested_key, lead))
 
+                # Serialize read/merge/write, including the first insert. Stable
+                # acquisition order avoids deadlocks between overlapping batches.
+                for key in sorted({key for key, _lead in resolved_rows}):
+                    cursor.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", (key,))
+                merged_leads = []
                 for key, lead in resolved_rows:
-                    payload = lead.model_dump(
+                    previous = self._load_objective_projection(
+                        cursor, key, objective_id
+                    )
+                    merged = (
+                        previous
+                        if mark_as_search and previous
+                        else merge_projection(
+                            previous, lead.model_dump(mode="json", exclude_unset=True)
+                        )
+                    )
+                    # A fresh card ID may differ from an older search ID; keep the
+                    # current view's ID while preserving the canonical memory key.
+                    merged["id"] = lead.id
+                    complete_lead = scope_lead(
+                        LeadViewItem.model_validate(merged), objective_id
+                    )
+                    merged_leads.append(complete_lead)
+                    payload = complete_lead.model_dump(
                         mode="json", exclude_none=True, exclude_defaults=True
                     )
+                    payload[PROJECTION_VERSION_KEY] = 1
                     domain = _website_domain(lead.website_url)
                     objectives = [objective_id]
                     cursor.execute(
@@ -371,7 +681,7 @@ class CompanyMemory:
                             lead_payload = CASE
                                 WHEN EXCLUDED.search_count > 0
                                 THEN stored.lead_payload
-                                ELSE stored.lead_payload || EXCLUDED.lead_payload
+                                ELSE EXCLUDED.lead_payload
                             END,
                             objective_ids = (
                                 SELECT ARRAY(
@@ -423,12 +733,51 @@ class CompanyMemory:
                 stored_count = int(cursor.fetchone()[0])
             connection.commit()
 
+        projected_payloads = [
+            lead.model_dump(mode="json", exclude_none=True, exclude_defaults=True)
+            for lead in merged_leads
+        ]
+        projected_evidence, projected_observations = project_legacy_leads(
+            projected_payloads
+        )
+        if projected_evidence or projected_observations:
+            self.record_observation_batch(
+                evidence=projected_evidence,
+                observations=projected_observations,
+            )
+
         unique_keys = set(requested_keys)
         return CompanyMemoryResult(
             new_keys=frozenset(unique_keys - existing_requested),
             existing_keys=frozenset(unique_keys & existing_requested),
             stored_count=stored_count,
+            leads=tuple(merged_leads),
         )
+
+    @staticmethod
+    def _load_objective_projection(
+        cursor: Any, key: str, objective_id: str
+    ) -> dict[str, Any] | None:
+        """Reconstruct legacy deltas without mixing another campaign's contacts."""
+        cursor.execute(
+            f"SELECT lead_payload, capture_kind FROM {SNAPSHOT_TABLE} "
+            "WHERE company_key = %s AND objective_id = %s ORDER BY snapshot_id",
+            (key, objective_id),
+        )
+        projection = None
+        for payload, capture_kind in cursor.fetchall():
+            if projection and capture_kind == "company_search":
+                continue
+            projection = merge_projection(projection, payload)
+        if projection is not None:
+            return projection
+        cursor.execute(
+            f"SELECT lead_payload FROM {TABLE} WHERE company_key = %s "
+            "AND lead_payload->>'objective_id' = %s",
+            (key, objective_id),
+        )
+        row = cursor.fetchone()
+        return dict(row[0]) if row else None
 
     def count(self) -> int:
         """Return the number of distinct remembered companies."""
@@ -491,18 +840,29 @@ class CompanyMemory:
                     """,
                     parameters,
                 )
-                return [
-                    {
-                        "company_key": row[0],
-                        "lead": row[1],
-                        "first_seen_at": row[2].isoformat(),
-                        "last_seen_at": row[3].isoformat(),
-                        "search_count": int(row[4]),
-                        "objective_ids": list(row[5]),
-                        "snapshot_count": int(row[6]),
-                    }
-                    for row in cursor.fetchall()
-                ]
+                rows = cursor.fetchall()
+                results = []
+                for row in rows:
+                    projection = (
+                        self._load_objective_projection(cursor, row[0], objective_id)
+                        if objective_id
+                        else dict(row[1])
+                    )
+                    if projection is None:
+                        continue
+                    projection.pop(PROJECTION_VERSION_KEY, None)
+                    results.append(
+                        {
+                            "company_key": row[0],
+                            "lead": projection,
+                            "first_seen_at": row[2].isoformat(),
+                            "last_seen_at": row[3].isoformat(),
+                            "search_count": int(row[4]),
+                            "objective_ids": list(row[5]),
+                            "snapshot_count": int(row[6]),
+                        }
+                    )
+                return results
 
     def history(self, company_key: str, *, limit: int = 50) -> list[dict[str, Any]]:
         """Return immutable snapshots for one remembered company."""
@@ -603,6 +963,16 @@ class CompanyMemory:
                     "WHERE objective_id IS NOT NULL"
                 )
                 objective_scoped_snapshots = int(cursor.fetchone()[0])
+                canonical_counts = {}
+                for label, table in (
+                    ("stored_evidence", EVIDENCE_TABLE),
+                    ("stored_observations", OBSERVATION_TABLE),
+                    ("stored_score_contributions", SCORE_TABLE),
+                    ("stored_outcomes", OUTCOME_TABLE),
+                    ("recorded_plugins", PLUGIN_STATE_TABLE),
+                ):
+                    cursor.execute(f"SELECT COUNT(*) FROM {table}")
+                    canonical_counts[label] = int(cursor.fetchone()[0])
         return {
             "backend": "postgresql",
             "connected": True,
@@ -613,6 +983,7 @@ class CompanyMemory:
             "objective_scoped_snapshots": objective_scoped_snapshots,
             "unscoped_snapshots": stored_snapshots - objective_scoped_snapshots,
             "database_url_env": DATABASE_URL_ENV,
+            **canonical_counts,
         }
 
 

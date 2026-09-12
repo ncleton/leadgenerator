@@ -108,6 +108,10 @@ class PublicEvidence(StrictModel):
     person_name: str | None = Field(default=None, min_length=1, max_length=300)
     person_role: str | None = Field(default=None, min_length=1, max_length=300)
     role_is_current: bool | None = None
+    access_mode: Literal[
+        "public_page", "public_search_result", "authenticated_browser"
+    ] = "public_page"
+    asset_url: str | None = Field(default=None, max_length=2000)
 
     @field_validator("company_identifiers")
     @classmethod

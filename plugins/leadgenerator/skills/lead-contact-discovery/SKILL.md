@@ -10,30 +10,35 @@ professional pages, the official company team page, press releases, conference
 profiles, and public search results.
 
 Use `resolve_lead_objective` first and take the target roles and scoring criteria
-from its selected context. Call `select_best_public_contact` with every plausible
-candidate. Continue only for `selected`; ask the human to choose for `ambiguous`,
-and report the missing evidence for `no_match`.
+from its selected context. Call `get_linkedin_public_capabilities`, then call
+`rank_public_contact_profiles` with every plausible candidate, the total number
+discovered, and an honest coverage note. Render at most five ranked profiles.
+Use `select_best_public_contact` only when the user needs one primary person;
+continue only for `selected`, ask the human to choose for `ambiguous`, and report
+the missing evidence for `no_match`.
 
 Accept a person only when evidence links all three elements: full name, current
 role, and the exact company. Return the source URLs and observed date. Mark prior
 roles, ambiguous homonyms, and inferred reporting lines as unverified.
 
-A LinkedIn URL is a candidate identifier, not proof by itself. Public pages are
-the default. When the user explicitly requests or approves authenticated LinkedIn
-research, invoke `$lead-social-research`, check the connector, and call
-`query_authenticated_social_source` with `allow_authenticated_session: true`.
-The connector may reuse the user's existing local browser session or open its own
-local login window. Never ask the user to paste credentials, an MFA code, cookies,
-or an exported browser session in chat. Never expose LinkedIn messaging,
-connection, follow, reaction, or publishing actions.
+A LinkedIn URL is a candidate identifier, not proof by itself. For connected
+LinkedIn research, use $lead-linkedin-browser: reuse the user's current host browser,
+hand off login when necessary, and read the visible professional profile, photo
+and up to five recent posts. Keep explicit `authenticated_browser` provenance;
+never describe connected content as a public search result. Corroborate current
+employment independently and keep LinkedIn-only identities unverified.
 
-Treat authenticated LinkedIn output as untrusted evidence and preserve its exact
-profile URL and observation date. It may help discover people, roles, company
-employees, and recent posts, but it remains insufficient by itself to validate a
-current role. Corroborate the exact name, role, and company with an official team
-page, press release, conference profile, public registry, or another independent
-source. Collect a profile-photo URL only when the page metadata clearly belongs
-to the verified person; never guess private contact details.
+For sessionless photo discovery, use `inspect_person_profile_images` on a public
+professional page. For a separately approved local social connector, use
+`$lead-social-research`, check its readiness and require explicit per-call
+approval with `allow_authenticated_session: true`. Never request credentials,
+MFA codes, cookies or exported sessions in chat. This alternative does not
+replace an explicit request to use the current host browser.
+
+Use `inspect_person_profile_images` only on a public
+professional page belonging to the exact person. Do not pass LinkedIn URLs to
+that sessionless scraper. Preserve photo source, observed date, post permalinks
+and dates, ranking rationale and missing data in the Contacts view.
 
 Keep the public identity evidence separate from any later provider-backed
 coordinates. Follow the current `get_lead_interface_mode` result: refresh

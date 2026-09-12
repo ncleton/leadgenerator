@@ -1,0 +1,7 @@
+interface:
+  display_name: "Personnalisation Lead Generator"
+  short_description: "Adapte proprement l’interface et les plugins"
+  brand_color: "#087461"
+  default_prompt: "Utilise $lead-customization pour prévisualiser puis appliquer mon adaptation Lead Generator au niveau le plus léger possible."
+policy:
+  allow_implicit_invocation: true

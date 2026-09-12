@@ -6,6 +6,6 @@ cd "$ROOT_DIR"
 
 uv run --project plugins/leadgenerator black --check plugins/leadgenerator/src tests
 uv run --project plugins/leadgenerator ruff check plugins/leadgenerator/src tests
-uv run --project plugins/leadgenerator pytest -c plugins/leadgenerator/pyproject.toml
+uv run --project plugins/leadgenerator pytest -c plugins/leadgenerator/pyproject.toml tests
 python3 scripts/check_distribution_privacy.py
 python3 scripts/agent-privacy-check.py guard --root . --tracked

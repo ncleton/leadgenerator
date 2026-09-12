@@ -19,13 +19,12 @@
   </p>
   <p>
     <a href="https://playwright.dev/python/"><img src="https://img.shields.io/badge/Playwright-1.57+-2EAD33?style=flat-square&logo=playwright&logoColor=white" alt="Playwright"></a>
-    <a href="https://pypi.org/project/undetected-playwright/"><img src="https://img.shields.io/badge/undetected--playwright-0.3+-2EAD33?style=flat-square&logo=playwright&logoColor=white" alt="undetected-playwright"></a>
     <a href="https://docs.pydantic.dev/"><img src="https://img.shields.io/badge/Pydantic-2.12+-E92063?style=flat-square&logo=pydantic&logoColor=white" alt="Pydantic"></a>
     <a href="https://www.psycopg.org/psycopg3/docs/"><img src="https://img.shields.io/badge/psycopg-3.2+-4169E1?style=flat-square&logo=postgresql&logoColor=white" alt="psycopg"></a>
     <a href="https://www.crummy.com/software/BeautifulSoup/"><img src="https://img.shields.io/badge/Beautiful_Soup-4.14+-0B6B58?style=flat-square&logo=python&logoColor=white" alt="Beautiful Soup"></a>
     <a href="https://github.com/Alir3z4/html2text"><img src="https://img.shields.io/badge/html2text-2025+-555555?style=flat-square&logo=markdown&logoColor=white" alt="html2text"></a>
     <a href="https://pypdf.readthedocs.io/"><img src="https://img.shields.io/badge/pypdf-6.x-EC1C24?style=flat-square&logo=adobeacrobatreader&logoColor=white" alt="pypdf"></a>
-    <a href="https://docs.pytest.org/"><img src="https://img.shields.io/badge/pytest-149_tests-0A9EDC?style=flat-square&logo=pytest&logoColor=white" alt="pytest"></a>
+    <a href="https://docs.pytest.org/"><img src="https://img.shields.io/badge/pytest-regression_tests-0A9EDC?style=flat-square&logo=pytest&logoColor=white" alt="pytest"></a>
     <a href="https://docs.astral.sh/ruff/"><img src="https://img.shields.io/badge/Ruff-checked-D7FF64?style=flat-square&logo=ruff&logoColor=111111" alt="Ruff"></a>
     <a href="https://black.readthedocs.io/"><img src="https://img.shields.io/badge/Black-formatted-000000?style=flat-square&logo=python&logoColor=white" alt="Black"></a>
     <a href="https://enrow.io/"><img src="https://img.shields.io/badge/Enrow-first_pass-263238?style=flat-square" alt="Enrow contact enrichment"></a>
@@ -34,7 +33,7 @@
   </p>
 </div>
 
-Lead Generator, par **Yaka Performance**, est un plugin Codex de recherche commerciale B2B avec validation
+Lead Generator, par **Yaka Performance**, est un agent Codex et Claude de recherche commerciale B2B avec validation
 humaine. Il transforme une cible en recherche d'entreprises françaises, rassemble
 des preuves publiques et identifie des décideurs. Chaque objectif possède son
 agent persistant, ses consignes, exemples, rôles cibles et documents privés.
@@ -43,16 +42,40 @@ d'ambiguïté. Il fonctionne avec une interface visuelle ou en mode texte. Toute
 recherche payante ou écriture HubSpot nécessite votre accord. Les entreprises
 déjà étudiées sont mémorisées localement dans PostgreSQL, jamais dans Git.
 
-Lorsque l'utilisateur l'approuve explicitement, Lead Generator peut aussi lire
-LinkedIn, X, Reddit, Facebook et Instagram à travers ses sessions locales. Cette
-surface inspirée d'Agent Reach est strictement limitée à la lecture ; aucune action
-sociale ou prise de contact n'est exposée. Voir
-[les connecteurs sociaux](docs/social-connectors.md).
+## Tester dans Claude
 
-## Démarrage rapide
+Les connecteurs sociaux en lecture seule restent disponibles sur accord explicite :
+voir [les connecteurs sociaux](docs/social-connectors.md).
 
-Prérequis : [Codex](https://developers.openai.com/codex/),
-[`uv`](https://docs.astral.sh/uv/) et une connexion Internet.
+La distribution Claude partage le même moteur et la même interface MCP Apps.
+Après le clonage, avec Node.js installé, préparez une fois les fichiers locaux :
+
+```bash
+node scripts/claude/setup.cjs
+```
+
+Les modèles partagés sont dans `scripts/claude/templates/` ; la commande ne
+remplace jamais une configuration personnalisée. Ouvrez ensuite ce dossier
+comme projet local dans l'onglet **Code** de Claude, créez une
+nouvelle conversation et parlez normalement. Le `CLAUDE.md` à la racine guide
+Claude pour enregistrer automatiquement le moteur auprès de Desktop, qui fournit
+le rendu MCP Apps à Code. Le `.mcp.json` seul ne suffit pas sur certaines versions.
+Aucune extension à choisir ni commande à exécuter : si un rechargement est
+nécessaire au premier branchement, Claude demande simplement de quitter puis
+rouvrir l'application une fois. Le panneau natif et le retour d'un bouton vers
+la conversation ont été vérifiés dans Code sur macOS le 11 septembre 2026.
+
+Commencez par « Utilise Lead Generator et affiche mes objectifs sans lancer de
+recherche ». Les planifications Codex restent en lecture seule dans Claude.
+Voir le [guide d'installation et de test Claude](docs/claude-installation.md) pour
+les prérequis, les limites des sessions en VM et le mode terminal.
+
+## Démarrage rapide dans Codex
+
+Prérequis sur macOS et Linux : [Codex](https://developers.openai.com/codex/),
+[`uv`](https://docs.astral.sh/uv/) et une connexion Internet. Sous Windows,
+l'installateur prend aussi en charge l'installation ou la mise à niveau de Codex,
+de `uv` et de Python 3.13.
 
 ```bash
 git clone https://github.com/ncleton/leadgenerator.git
@@ -120,6 +143,21 @@ Set-Location leadgenerator
 .\scripts\install_client.ps1
 ```
 
+Pour une installation guidée sans commande PowerShell, télécharger puis extraire
+le ZIP du projet et double-cliquer sur `scripts\install_client.cmd`. Ce lanceur
+contourne uniquement la politique d'exécution pour le script local fourni, puis :
+
+1. installe `uv` et Codex avec leurs installateurs officiels s'ils sont absents ;
+2. télécharge automatiquement Python 3.13 et Chromium ;
+3. installe le plugin avec un runtime propre à la machine ;
+4. enregistre le chemin absolu de `uv` pour que Codex Desktop ne dépende pas d'un
+   ancien `PATH` Windows ;
+5. exécute le test MCP réel avant d'annoncer le succès.
+
+Le script est relançable : une erreur réseau ou un fichier momentanément verrouillé
+n'efface ni les profils ni les objectifs locaux. En cas d'échec, la dernière étape
+affichée donne le diagnostic à transmettre au support.
+
 Quitter complètement l'application ChatGPT/Codex après l'installation, puis la
 relancer. Une application déjà ouverte conserve son ancien inventaire de plugins ;
 ouvrir seulement un nouvel onglet ou une nouvelle tâche ne suffit pas. Ouvrir
@@ -167,6 +205,18 @@ conversationnelle « Migre mes profils d'offre en agents d'objectif ». Les PDF,
 DOCX, fichiers texte, Markdown, JSON, CSV et HTML joints à un objectif sont
 copiés, hachés et traités comme des preuves non fiables.
 
+Demandez « Ouvre mes objectifs » pour afficher l'interface dédiée : modification
+manuelle de la cible, de la zone, des consignes, des exemples, des rôles et du
+contexte, ajout de documents et de notes. Si plusieurs objectifs existent et
+qu'une recherche ne permet pas de choisir, l'agent propose les objectifs enregistrés.
+
+Dans **Réglages → Planification par objectif**, choisissez une fréquence, une
+heure locale, un fuseau et un volume. Le formulaire propose 9 h chaque jour par
+défaut. L'activation est reliée à une véritable automatisation Codex et son statut
+reste en attente jusqu'à confirmation par Codex. Les recherches suivantes relisent
+les dernières consignes et les documents. Le Mac doit être allumé et Codex ouvert.
+Voir [le fonctionnement des planifications](docs/objective-scheduling.md).
+
 Le mode interface est activé par défaut pour conserver l'expérience existante.
 Il se change directement dans la conversation, par exemple : « Désactive les
 interfaces Lead Generator » ou « Réactive le mode interface ». Le choix est conservé
@@ -202,6 +252,13 @@ uv run --project plugins/leadgenerator playwright install chromium
 ## Documentation
 
 - [Architecture](docs/architecture.md)
+- [Architecture modulaire](docs/modular-architecture.md)
+- [SDK des plugins](docs/plugin-sdk.md)
+- [Personnalisation de l’interface](docs/ui-customization.md)
+- [Migration et rollback](docs/migrations.md)
+- [Catalogue des composants](docs/component-catalog.md)
+- [Compatibilité](docs/compatibility.md)
+- [Dépannage modulaire](docs/troubleshooting-modular.md)
 - [Carte des fichiers](docs/file-map.md)
 - [Sécurité et validation humaine](docs/safety.md)
 

@@ -7,6 +7,22 @@ des pages comme des données non fiables. Une page web ne peut jamais modifier l
 instructions de l'agent. Une identité professionnelle n'est acceptée que si des
 preuves publiques relient le nom, le rôle actuel et l'entreprise exacte.
 
+Les URL LinkedIn ne sont pas une preuve unique du poste actuel. Avec l'accord de
+l'utilisateur, l'agent peut rechercher les profils professionnels, photos et
+publications visibles dans son navigateur Codex connecté. La session reste gérée
+par le navigateur : ni cookies, ni identifiants, ni codes MFA, ni export de profil
+ne sont acceptés par Lead Generator. Les outils MCP de session préparent des
+actions pour l'outil navigateur et enregistrent seulement des observations
+éphémères et cloisonnées. Ils ne déclarent jamais une connexion sans observation.
+
+L'accès connecté est tracé avec `authenticated_browser`, l'URL source et la date.
+L'emploi actuel demande toujours une corroboration indépendante. Aucune lecture
+de messagerie, aucun message, invitation ou contournement de limite, CAPTCHA ou
+contrôle de sécurité n'est autorisé. L'agent ne reproduit pas les API privées.
+L'utilisateur termine lui-même la connexion et les contrôles dans le navigateur.
+Cette capacité n'est pas une API approuvée par LinkedIn et ne supprime pas le
+risque de restriction de compte décrit dans ses conditions d'utilisation.
+
 ## Données et hypothèses
 
 Chaque résultat distingue les faits observés, leurs URL sources, les hypothèses
@@ -39,6 +55,28 @@ Un clic dans l'interface, une sélection antérieure ou une confirmation génér
 ne remplace pas cette autorisation au point d'action. Lead Generator n'envoie aucun
 email, message, invitation ou séquence commerciale.
 
+Le service d'approbation appartient au kernel et ne peut pas être remplacé par un
+shell client. `paid_read` et `external_write` exigent toujours une confirmation,
+même lorsqu'un outil est appelé directement depuis un cache MCP.
+
+## Extensions privées
+
+Les contributions de panneau sont déclaratives et refusent CSS, JavaScript,
+HTML, sélecteurs et chemins sortant du dossier privé. Un bundle UI autonome est
+isolé dans l'iframe MCP Apps, ne reçoit ni token ni connexion PostgreSQL et doit
+déclarer sa CSP avec des origines HTTPS explicites. Une extension métier utilise
+un sous-processus JSON borné, un environnement minimal et un bac à sable système
+qui bloque le réseau direct, l'écriture hors runtime et la lecture des racines
+sensibles usuelles. `sandbox-exec` est utilisé sur macOS et Bubblewrap sur Linux.
+Sans backend d'isolation pris en charge, notamment sous Windows dans le SDK 1.x,
+l'extension reste en quarantaine. Les permissions réseau et filesystem directes
+sont refusées : une source native contrôlée doit fournir les données par RPC.
+
+Une approbation locale lie l'identifiant, la version, les permissions et
+l'empreinte de tous les fichiers installés. Toute modification invalide cette
+approbation. Un shell incompatible reste en quarantaine ; seul l'utilisateur peut
+demander le retour au shell natif.
+
 ## Secrets et état local
 
 Les clés restent dans les variables `ENROW_API_KEY`, `FULLENRICH_API_KEY` et
@@ -49,7 +87,8 @@ Les profils de navigateur et sessions sociales restent dans les emplacements
 privés des backends locaux, jamais dans le dépôt ou les sorties de test.
 
 Les identités vendeur, offres et critères clients restent dans
-`~/.codex/leadgenerator/`. Ils ne sont jamais générés dans un skill ou un guide
+`~/.codex/leadgenerator/`. La session LinkedIn appartient au navigateur Codex,
+hors de ce stockage et hors du dépôt. Ces données ne sont jamais générées dans un skill ou un guide
 partageable. Les anciens skills locaux contenant un profil sont migrés vers ce
 stockage privé puis supprimés lors de l'installation.
 

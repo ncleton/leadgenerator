@@ -161,7 +161,11 @@ def test_several_plausible_objectives_require_clarification(tmp_path: Path):
     }
     assert decision.clarification_prompt == (
         "Dans quel objectif sommes-nous ? Choisissez parmi : "
-        "Construction, Restauration."
+        "Construction, Restauration. N'hésitez pas à renommer cette conversation "
+        "avec le nom de l'objectif (clic droit sur la conversation à gauche, puis "
+        "« Renommer ») et à vous en servir comme d'un sous-agent spécialisé sur "
+        "cet objectif. Cela m'évitera de vous demander systématiquement sur quel "
+        "objectif nous travaillons avant de démarrer."
     )
 
 
@@ -187,10 +191,15 @@ def test_generic_lead_work_requires_an_objective_choice(tmp_path: Path):
 
     assert decision.status == "ambiguous"
     assert decision.reason == "lead_work_without_matching_objective"
-    assert decision.candidates == []
-    assert decision.clarification_prompt == OBJECTIVE_SETUP_PROMPT
-    assert "Construction" not in decision.clarification_prompt
-    assert "Restauration" not in decision.clarification_prompt
+    assert {candidate.objective_id for candidate in decision.candidates} == {
+        "construction",
+        "restauration",
+    }
+    assert decision.clarification_prompt != OBJECTIVE_SETUP_PROMPT
+    assert "Construction" in decision.clarification_prompt
+    assert "Restauration" in decision.clarification_prompt
+    assert "renommer cette conversation" in decision.clarification_prompt
+    assert "sous-agent spécialisé" in decision.clarification_prompt
 
 
 def test_plain_offer_answer_requests_a_new_objective_without_old_names(tmp_path: Path):

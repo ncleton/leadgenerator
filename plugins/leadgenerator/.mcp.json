@@ -9,7 +9,9 @@
         "--frozen",
         "leadgenerator-mcp"
       ],
-      "cwd": "."
+      "cwd": ".",
+      "required": true,
+      "startup_timeout_sec": 30
     }
   }
 }

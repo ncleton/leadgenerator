@@ -245,6 +245,13 @@ OBJECTIVE_SETUP_PROMPT = (
     "Que souhaitez-vous vendre à ces entreprises ? Une phrase suffit, par "
     "exemple : « Je vends des bornes de recharge. »"
 )
+OBJECTIVE_CONVERSATION_HINT = (
+    " N'hésitez pas à renommer cette conversation avec le nom de l'objectif "
+    "(clic droit sur la conversation à gauche, puis « Renommer ») et à vous en "
+    "servir comme d'un sous-agent spécialisé sur cet objectif. Cela m'évitera de "
+    "vous demander systématiquement sur quel objectif nous travaillons avant de "
+    "démarrer."
+)
 
 
 class RoutingCandidate(StrictModel):
@@ -1019,7 +1026,14 @@ class ObjectiveStore:
                 return RoutingDecision(
                     status="ambiguous",
                     reason="lead_work_without_matching_objective",
-                    clarification_prompt=OBJECTIVE_SETUP_PROMPT,
+                    candidates=candidates,
+                    clarification_prompt=(
+                        "Quel objectif souhaitez-vous utiliser pour cette recherche ? "
+                        "Choisissez parmi : "
+                        + ", ".join(candidate.name for candidate in candidates)
+                        + "."
+                        + OBJECTIVE_CONVERSATION_HINT
+                    ),
                 )
             return RoutingDecision(
                 status="not_applicable",
@@ -1040,7 +1054,10 @@ class ObjectiveStore:
                 reason="several_plausible_objectives",
                 candidates=ambiguous,
                 clarification_prompt=(
-                    "Dans quel objectif sommes-nous ? Choisissez parmi : " + names + "."
+                    "Dans quel objectif sommes-nous ? Choisissez parmi : "
+                    + names
+                    + "."
+                    + OBJECTIVE_CONVERSATION_HINT
                 ),
             )
         objective = self.load(top.objective_id)
@@ -1114,6 +1131,31 @@ class ObjectiveStore:
                 f"Unsupported document type: {extension or 'no extension'}."
             )
         content = source.read_bytes()
+        return self.add_attachment_bytes(
+            objective_id,
+            source.name,
+            content,
+            provenance=provenance,
+            mime_type=mime_type,
+        )
+
+    def add_attachment_bytes(
+        self,
+        objective_id: str,
+        filename: str,
+        content: bytes,
+        *,
+        provenance: DocumentProvenance | None = None,
+        mime_type: str | None = None,
+    ) -> ObjectiveAttachment:
+        """Store a browser-selected document using the same extraction boundary."""
+        objective = self.load(objective_id)
+        if objective.status != "active":
+            raise ValueError("Documents cannot be attached to an archived objective.")
+        if not filename or Path(filename).name != filename or "\\" in filename:
+            raise ValueError("An attachment needs a filename without a directory.")
+        if Path(filename).suffix.lower() not in SUPPORTED_EXTENSIONS:
+            raise ValueError("Unsupported document type.")
         size = len(content)
         if size > MAX_ATTACHMENT_BYTES:
             raise ValueError("Attachment exceeds the 50 MB limit.")
@@ -1122,7 +1164,7 @@ class ObjectiveStore:
         attachment_dir = (
             self._objective_dir(objective_id) / "attachments" / attachment_id
         )
-        safe_name = _safe_filename(source.name)
+        safe_name = _safe_filename(filename)
         stored_path = attachment_dir / safe_name
         attachment_dir.mkdir(parents=True, exist_ok=True)
         stored_path.write_bytes(content)
@@ -1150,7 +1192,7 @@ class ObjectiveStore:
         record = ObjectiveAttachment(
             attachment_id=attachment_id,
             objective_id=objective_id,
-            original_name=source.name,
+            original_name=filename,
             mime_type=resolved_mime,
             byte_size=size,
             sha256=digest,

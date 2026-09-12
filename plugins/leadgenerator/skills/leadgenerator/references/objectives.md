@@ -36,11 +36,19 @@ geography, return the concrete mismatch and ask whether to create a new objectiv
 Do not silently rewrite the objective and do not replace the explanation with a
 list of unrelated names.
 
-An unmatched generic request such as « trouve-moi des leads dans l'industrie »
-must ask what the user sells without listing unrelated objective names. When the
-next answer plainly describes a new offer, create and select the new objective
-directly. Internal validation or test objectives are never useful choices merely
-because they are active.
+An unmatched generic prospecting request with several saved objectives must
+offer those objectives as choices. Do not repeat seller onboarding when the
+offer is already recorded in an objective. If the user explicitly describes a
+new offer, create and select that objective directly. Keep test objectives in
+isolated test stores, never in the user's production objective list.
+
+Use `render_lead_objectives` to open the dedicated manager without selecting an
+objective or requiring seller onboarding. The editor reads `get_lead_objective`,
+saves manual changes through `update_lead_objective` with revision checks, and
+accepts local document uploads through `upload_lead_objective_document`. Documents
+larger than the interface's 10 MB limit can use `attach_lead_objective_document`
+with a local file, up to its 50 MB limit. Read `references/scheduling.md` from the
+skill root for per-objective automation management.
 
 ## Documents and notes
 

@@ -1,0 +1,22 @@
+apiVersion: "leadgenerator.yaka/v1"
+kind: "Plugin"
+metadata:
+  id: "example.private-source"
+  version: "1.0.0"
+  tier: "client"
+spec:
+  requiresSdk: ">=1.0.0,<2.0.0"
+  runtime: "executable"
+  command: ["/absolute/private/path/plugin-host"]
+  provides: ["example.source"]
+  requires: ["observations"]
+  contributes:
+    - registry: "research.sources"
+      ids: ["example.source"]
+  permissions:
+    network: []
+    secrets: ["EXAMPLE_API_TOKEN"]
+    subprocess: true
+  configuration:
+    schema: "config.schema.json"
+  healthCheck: "rpc"

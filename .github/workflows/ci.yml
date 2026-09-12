@@ -11,6 +11,20 @@ permissions:
 jobs:
   quality:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      LEADGENERATOR_TEST_POSTGRES_URL: postgresql://postgres@localhost:5432/postgres
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
@@ -20,3 +34,36 @@ jobs:
       - run: uv sync --project plugins/leadgenerator --frozen
       - run: uv run --project plugins/leadgenerator playwright install --with-deps chromium
       - run: ./scripts/validate.sh
+
+  windows-runtime:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          python-version: "3.13"
+          enable-cache: true
+      - name: Parse the Windows installer with Windows PowerShell
+        shell: powershell
+        run: |
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            "$PWD\scripts\install_client.ps1",
+            [ref]$tokens,
+            [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            exit 1
+          }
+      - run: uv sync --project plugins/leadgenerator --frozen
+      - name: Test Windows installation and runtime contracts
+        # The runtime suite exercises native MCP Apps in a real browser.
+        run: uv run --project plugins/leadgenerator playwright install chromium
+      - name: Run Windows installation and runtime contracts
+        run: >-
+          uv run --project plugins/leadgenerator pytest
+          -c plugins/leadgenerator/pyproject.toml
+          tests/runtime/test_installation.py
+          tests/runtime/test_server.py

@@ -3,6 +3,10 @@
 Lead Generator suit le modèle de distribution Codex : un marketplace local référence
 un plugin autonome ; le plugin embarque ses skills et un serveur MCP local.
 
+Depuis le SDK 1.x, ce serveur assemble un micro-noyau, des plugins natifs Yaka et
+un éventuel pack privé. La conception détaillée et ses contrats sont décrits dans
+[modular-architecture.md](modular-architecture.md).
+
 ```text
 Demande utilisateur
         │

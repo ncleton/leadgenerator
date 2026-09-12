@@ -1,0 +1,29 @@
+apiVersion: "leadgenerator.yaka/v1"
+kind: "Plugin"
+metadata:
+  id: "example.private-shell"
+  version: "1.0.0"
+  tier: "client"
+spec:
+  requiresSdk: ">=1.0.0,<2.0.0"
+  runtime: "ui-bundle"
+  provides: ["ui.shell"]
+  requires: []
+  contributes: []
+  permissions: {}
+  configuration:
+    schema: "config.schema.json"
+  healthCheck: "resources"
+  ui:
+    explorer:
+      uri: "ui://example/private-shell/explorer/v1.html"
+      html: "explorer.html"
+      title: "Explorateur privé de démonstration"
+      description: "Surface synthétique conforme pour l’exploration."
+    workspace:
+      uri: "ui://example/private-shell/workspace/v1.html"
+      html: "workspace.html"
+      title: "Workspace privé de démonstration"
+      description: "Surface synthétique conforme pour le parcours."
+    resourceDomains: []
+    connectDomains: []

@@ -1,0 +1,17 @@
+apiVersion: "leadgenerator.yaka/v1"
+kind: "ClientPack"
+metadata:
+  id: "example.private-pack"
+  version: "1.0.0"
+spec:
+  extends: []
+  plugins:
+    enable: ["yaka.ui-workspace"]
+    disable: []
+    providers:
+      ui.shell: "yaka.ui-workspace"
+    config: {}
+  ui:
+    shell_provider: "yaka.ui-workspace"
+  campaigns: []
+  scorecards: []

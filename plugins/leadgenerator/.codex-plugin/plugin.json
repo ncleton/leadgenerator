@@ -1,6 +1,6 @@
 {
   "name": "leadgenerator",
-  "version": "0.4.0+codex.20260912091035",
+  "version": "0.4.0+codex.20260912181349",
   "description": "Evidence-backed B2B lead sourcing, qualification, contact enrichment, and confirmed HubSpot synchronization.",
   "author": {
     "name": "Yaka Performance"
@@ -22,6 +22,10 @@
     "category": "Sales",
     "capabilities": [
       "Interactive MCP Apps lead explorer",
+      "Versioned micro-kernel and independently replaceable native capabilities",
+      "Private declarative client packs with validated composition and rollback",
+      "Configurable native UI, declarative panels, and replaceable two-surface UI shells",
+      "Quarantined isolated client extensions with explicit permissions",
       "Fullscreen lead maps with optional ephemeral device geolocation",
       "Persistent objective agents and document context",
       "Six-view interactive lead workflow",
@@ -29,7 +33,10 @@
       "French NAF company search",
       "Read-only LinkedIn, X, Reddit, Facebook, and Instagram research through explicitly approved local sessions",
       "Private PostgreSQL company memory, immutable history, and readable export",
+      "Immutable evidence, observations, explainable scores, and reviewed outcomes",
       "Human-reviewed lead shortlist",
+      "Public-only professional profile discovery with coverage-aware top-five ranking",
+      "Independently evidenced profile photos and dated public post summaries",
       "Guarded Enrow-to-FullEnrich enrichment cascade",
       "Confirmed HubSpot company association, list, and owner assignment"
     ],

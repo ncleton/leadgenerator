@@ -87,8 +87,7 @@ def _json_ld_logos(soup: BeautifulSoup, base_url: str) -> list[str]:
             if isinstance(graph, list):
                 nodes.extend(item for item in graph if isinstance(item, dict))
             logo = node.get("logo")
-            if isinstance(logo, dict):
-                logo = logo.get("url")
+            logo = _image_value(logo)
             url = _absolute_image_url(base_url, logo)
             if url:
                 found.append(url)
@@ -251,16 +250,6 @@ def extract_visual_candidates(html: str, source_url: str) -> list[VisualCandidat
     for url in _json_ld_logos(soup, source_url):
         add("logo", url, "Logo déclaré dans les données Organization du site.", "high")
 
-    for link in soup.find_all("link", href=True):
-        rel = " ".join(link.get("rel") or []).lower()
-        if "icon" in rel:
-            add(
-                "logo",
-                link.get("href"),
-                f"Icône déclarée par le site ({rel}).",
-                "medium",
-            )
-
     for meta in soup.find_all("meta"):
         key = str(meta.get("property") or meta.get("name") or "").lower()
         if key in {"og:image", "twitter:image", "twitter:image:src"}:
@@ -271,27 +260,60 @@ def extract_visual_candidates(html: str, source_url: str) -> list[VisualCandidat
                 "high",
             )
 
-    for image in soup.find_all("img", src=True):
+    for image in soup.find_all("img"):
         marker = " ".join(
             str(value or "")
-            for value in (image.get("alt"), image.get("class"), image.get("id"))
+            for value in (
+                image.get("alt"),
+                image.get("class"),
+                image.get("id"),
+                image.get("src"),
+                image.get("data-src"),
+            )
         ).lower()
+        values = [image.get("data-src"), image.get("data-lazy-src"), image.get("src")]
+        for srcset in (image.get("srcset"), image.get("data-srcset")):
+            if isinstance(srcset, str):
+                values.extend(
+                    item.strip().split()[0]
+                    for item in srcset.split(",")
+                    if item.strip()
+                )
+        image_url = next(
+            (
+                url
+                for value in values
+                if (url := _absolute_image_url(source_url, value))
+            ),
+            None,
+        )
         if "logo" in marker:
             add(
                 "logo",
-                image.get("src"),
+                image_url,
                 "Image identifiée comme logo dans l'en-tête ou le balisage du site.",
                 "medium",
             )
         elif any(word in marker for word in ("hero", "banner", "office", "team")):
             add(
                 "representative_image",
-                image.get("src"),
+                image_url,
                 "Image éditoriale identifiée par le balisage de la page.",
                 "medium",
             )
 
-    return candidates[:20]
+    # Site icons are a fallback, never preferred to a declared/full-size logo.
+    for link in soup.find_all("link", href=True):
+        rel = " ".join(link.get("rel") or []).lower()
+        if "icon" in rel:
+            add("logo", link.get("href"), f"Icône déclarée par le site ({rel}).", "low")
+
+    logo_urls = {item.image_url for item in candidates if item.kind == "logo"}
+    return [
+        item
+        for item in candidates
+        if item.kind != "representative_image" or item.image_url not in logo_urls
+    ][:20]
 
 
 def discover_official_visuals(

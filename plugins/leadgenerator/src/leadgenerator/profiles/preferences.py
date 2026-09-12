@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 PREFERENCES_HOME = Path.home() / ".codex" / "leadgenerator"
 PREFERENCES_FILENAME = "preferences.json"
@@ -20,6 +20,7 @@ class LeadGeneratorPreferences(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     interface_mode: InterfaceMode = "chat_ui"
+    desired_lead_count: int = Field(default=10, ge=1, le=25)
 
     @property
     def interface_enabled(self) -> bool:
@@ -68,5 +69,18 @@ def set_interface_mode(
     preferences = load_preferences(profile_home).model_copy(
         update={"interface_mode": interface_mode}
     )
+    path = save_preferences(preferences, profile_home)
+    return preferences, path
+
+
+def set_desired_lead_count(
+    desired_lead_count: int,
+    profile_home: Path | None = None,
+) -> tuple[LeadGeneratorPreferences, Path]:
+    """Update the default number of leads requested from public searches."""
+    preferences = load_preferences(profile_home).model_copy(
+        update={"desired_lead_count": desired_lead_count}
+    )
+    preferences = LeadGeneratorPreferences.model_validate(preferences.model_dump())
     path = save_preferences(preferences, profile_home)
     return preferences, path

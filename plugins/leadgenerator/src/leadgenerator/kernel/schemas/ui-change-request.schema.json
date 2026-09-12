@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://yaka-performance.example/schemas/leadgenerator/ui-change-request-v1.json",
+  "title": "Lead Generator UI change request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["intent"],
+  "properties": {
+    "intent": {"enum": ["hide", "show", "rename", "reorder", "theme", "add_tab", "add_panel", "replace_shell", "restore_native", "disable_plugin", "enable_plugin"]},
+    "target_id": {"type": "string"},
+    "requested_value": {},
+    "required_behaviors": {"type": "array", "items": {"type": "string"}},
+    "affected_areas": {"type": "array", "items": {"type": "string"}},
+    "component": {"type": ["string", "null"]},
+    "observation_kind": {"type": ["string", "null"]},
+    "title": {"type": ["string", "null"]}
+  }
+}

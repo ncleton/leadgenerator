@@ -1,0 +1,12 @@
+ui:
+  theme:
+    primary_color: "#17324D"
+    surface_color: "#FFFFFF"
+    density: "compact"
+    font_family: "system"
+  navigation:
+    default_tab: "companies"
+    order: ["companies", "contacts", "visuals"]
+    hidden: []
+    labels:
+      companies: "Sites"
