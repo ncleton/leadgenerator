@@ -12,7 +12,7 @@ from concurrent.futures import ThreadPoolExecutor
 import psycopg
 import pytest
 from leadgenerator.persistence.company_memory import CompanyMemory
-from leadgenerator.ui.models import LeadViewItem
+from leadgenerator.ui.models import LeadViewItem, lead_workspace_payload
 from psycopg import sql
 from psycopg.conninfo import make_conninfo
 
@@ -118,7 +118,12 @@ def test_full_logo_contacts_partial_enrichment_render_cycle(memory, monkeypatch)
     assert person["company_siren"] == "123456789"
     assert person["objective_id"] == "objective-a"
     assert person["work_email"] == "person@example.com"
-    projected = final["workspace_view_model"]["contacts"][0]
+    # Native MCP responses omit the duplicate SDK projection. Rebuild it from
+    # the transmitted canonical cards, as an alternative shell would do.
+    projection = lead_workspace_payload(
+        [LeadViewItem.model_validate(lead)], active_objective_id="objective-a"
+    )
+    projected = projection["workspace_view_model"]["contacts"][0]
     assert projected["company_id"] == "example"
     stored = memory.find(objective_id="objective-a")[0]["lead"]
     assert stored["contacts"][0]["work_email"] == "person@example.com"

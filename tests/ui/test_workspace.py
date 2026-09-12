@@ -79,6 +79,8 @@ def test_grouped_contacts_preserve_actions_and_connected_provenance(
 ):
     payload = _sample_workspace()
     payload["initial_view"] = "contacts"
+    # Pin the initial details state instead of inheriting local UI preferences.
+    payload.setdefault("ui", {}).setdefault("theme", {})["density"] = "compact"
     first = payload["leads"][0]
     first["contacts"][0].update(
         {
