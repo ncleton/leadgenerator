@@ -5,7 +5,27 @@ All notable changes to Lead Generator are documented here. The project follows
 
 ## [Unreleased]
 
+### Added
+
+- Share the canonical runtime with Claude through portable packages and local
+  project bootstrap templates, with guarded Desktop registration.
+- Add a modular plugin kernel, customization SDK, objective management and
+  scheduling preferences, and a guided Windows installer.
+- Add scoped host-browser LinkedIn observations, safer image policies and
+  lossless private company projection merges.
+
+### Changed
+
+- Replace detailed-map duplication with IGN satellite imagery and use IGN plan
+  tiles for the standard map.
+- Keep sourcing volume configurable in local preferences.
+
 ### Fixed
+
+- Require sourced coordinates for every explorer lead before rendering or
+  persistence; label approximate positions and suppress misleading aerial focus.
+- Preserve native MCP Apps negotiation, contact navigation and delayed hydration
+  across supported hosts without claiming unsupported display capabilities.
 
 - Replace unrelated objective menus with a concise offer question, create a new
   objective directly from a clear selling intent, and let an explicit new-objective

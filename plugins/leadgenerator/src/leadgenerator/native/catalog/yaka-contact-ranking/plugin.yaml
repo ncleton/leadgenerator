@@ -1,0 +1,19 @@
+apiVersion: leadgenerator.yaka/v1
+kind: Plugin
+metadata:
+  id: yaka.contact-ranking
+  version: 1.0.0
+  tier: native
+spec:
+  requiresSdk: ">=1.0.0,<2.0.0"
+  runtime: python
+  entrypoint: leadgenerator.native.activators:activate_contact_ranking
+  provides: [contact-ranking]
+  requires: [observations]
+  contributes:
+    - registry: contacts.policies
+      ids: [objective-ranking]
+  permissions: {}
+  configuration:
+    schema: config.schema.json
+  healthCheck: services

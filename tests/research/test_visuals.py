@@ -30,6 +30,30 @@ def test_extract_visuals_prefers_declared_logo_and_social_image():
     assert all(item.source_url == "https://example.com/about" for item in candidates)
 
 
+def test_full_size_lazy_logo_wins_over_favicon_and_is_not_a_representative_image():
+    html = """<link rel="icon" href="/favicon.ico">
+      <meta property="og:image" content="/brand/logo.svg">
+      <img alt="Example" data-src="/brand/logo.svg" src="data:image/png;base64,AAAA">
+      <img class="hero" srcset="/factory.jpg 1x, /factory-large.jpg 2x">"""
+    candidates = extract_visual_candidates(html, "https://example.com/")
+    assert (
+        next(c.image_url for c in candidates if c.kind == "logo")
+        == "https://example.com/brand/logo.svg"
+    )
+    assert (
+        next(c.image_url for c in candidates if c.kind == "representative_image")
+        == "https://example.com/factory.jpg"
+    )
+
+
+def test_declared_logo_content_url_is_preserved():
+    html = '<script type="application/ld+json">{"@type":"Organization","logo":{"contentUrl":"/brand.svg"}}</script>'
+    assert (
+        extract_visual_candidates(html, "https://example.com/")[0].image_url
+        == "https://example.com/brand.svg"
+    )
+
+
 def test_person_image_requires_exact_json_ld_name():
     html = """
     <script type="application/ld+json">
@@ -92,6 +116,26 @@ def test_open_graph_person_image_needs_independent_exact_name_marker():
         )
         == 1
     )
+
+
+def test_profile_name_metadata_has_a_single_explainable_match_method():
+    html = """
+    <head>
+      <meta property="profile:first_name" content="Alice">
+      <meta property="profile:last_name" content="Martin">
+      <meta property="og:image" content="/alice.jpg">
+    </head>
+    """
+
+    candidates = extract_person_profile_images(
+        html,
+        "https://profiles.example/alice",
+        "Alice Martin",
+        observed_on=date(2026, 9, 8),
+    )
+
+    assert len(candidates) == 1
+    assert candidates[0].match_method == "profile name metadata + og:image"
 
 
 def test_linkedin_html_is_never_used_for_profile_image_collection():

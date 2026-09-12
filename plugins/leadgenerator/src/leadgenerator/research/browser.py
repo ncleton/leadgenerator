@@ -8,7 +8,6 @@ from urllib.parse import urljoin
 import html2text
 from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright
-from undetected_playwright import Malenia
 
 VISIBLE_PREVIEW_MS = 5_000
 
@@ -24,7 +23,6 @@ async def _collect_html(
         browser = await playwright.chromium.launch(headless=headless)
         try:
             context = await browser.new_context(ignore_https_errors=True)
-            await Malenia.apply_stealth(context)
             page = await context.new_page()
             response = await page.goto(
                 url,
@@ -65,3 +63,31 @@ def html_to_markdown(html: str, base_url: str) -> str:
     converter.ignore_images = True
     title_markup = f"<h1>{title}</h1>" if title else ""
     return converter.handle(title_markup + str(body)).strip()
+
+
+def analyze_public_html(html: str, source_url: str) -> dict[str, object]:
+    """Build text and visual evidence from the same rendered company page."""
+    # Keep the import local: visuals reuses collect_html for its standalone tool.
+    from leadgenerator.research.visuals import extract_visual_candidates
+
+    return {
+        "content": html_to_markdown(html, source_url),
+        "visual_candidates": [
+            candidate.model_dump(mode="json")
+            for candidate in extract_visual_candidates(html, source_url)
+        ],
+    }
+
+
+def collect_public_page(
+    url: str,
+    *,
+    timeout: int = 60,
+    headless: bool = True,
+) -> dict[str, object]:
+    """Render one approved page and preserve its text and visual candidates."""
+    from leadgenerator.research.url_safety import validate_public_url
+
+    safe_url = validate_public_url(url)
+    html = collect_html(safe_url, timeout=timeout, headless=headless)
+    return analyze_public_html(html, safe_url)

@@ -2,10 +2,12 @@
 
 from pathlib import Path
 
+import pytest
 from leadgenerator.profiles.preferences import (
     LeadGeneratorPreferences,
     load_preferences,
     preferences_path,
+    set_desired_lead_count,
     set_interface_mode,
 )
 from leadgenerator.profiles.user import (
@@ -90,3 +92,17 @@ def test_text_only_mode_is_private_persistent_and_reversible(tmp_path: Path):
 
     assert enabled.interface_enabled is True
     assert load_preferences(tmp_path).interface_mode == "chat_ui"
+
+
+def test_desired_lead_count_is_private_persistent_and_bounded(tmp_path: Path):
+    """The search-size default persists without changing the interface mode."""
+    updated, path = set_desired_lead_count(17, tmp_path)
+
+    assert path == preferences_path(tmp_path)
+    assert updated.desired_lead_count == 17
+    assert updated.interface_mode == "chat_ui"
+    assert load_preferences(tmp_path).desired_lead_count == 17
+    assert path.stat().st_mode & 0o777 == 0o600
+
+    with pytest.raises(ValueError, match="less than or equal to 25"):
+        set_desired_lead_count(26, tmp_path)

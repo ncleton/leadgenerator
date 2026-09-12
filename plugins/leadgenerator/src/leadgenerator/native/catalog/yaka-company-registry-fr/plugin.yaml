@@ -1,0 +1,20 @@
+apiVersion: leadgenerator.yaka/v1
+kind: Plugin
+metadata:
+  id: yaka.company-registry-fr
+  version: 1.0.0
+  tier: native
+spec:
+  requiresSdk: ">=1.0.0,<2.0.0"
+  runtime: python
+  entrypoint: leadgenerator.native.activators:activate_company_registry
+  provides: [company-registry.fr]
+  requires: [observations]
+  contributes:
+    - registry: research.sources
+      ids: [company-registry.fr]
+  permissions:
+    network: [recherche-entreprises.api.gouv.fr]
+  configuration:
+    schema: config.schema.json
+  healthCheck: services

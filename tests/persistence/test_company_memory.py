@@ -6,6 +6,8 @@ import stat
 import pytest
 from leadgenerator.persistence.company_memory import (
     CompanyMemory,
+    _subject_id_aliases,
+    _workspace_evidence_ids,
     company_identity_key,
     write_visible_export,
 )
@@ -50,6 +52,30 @@ def test_company_identity_fallback_is_stable_and_does_not_expose_name():
     assert first_key == company_identity_key(second)
     assert first_key.startswith("fallback:")
     assert "exemple" not in first_key
+
+
+def test_canonical_siren_reads_pre_sdk_observation_aliases():
+    assert _subject_id_aliases("siren:123456789") == [
+        "siren:123456789",
+        "123456789",
+    ]
+    assert _subject_id_aliases("123456789") == [
+        "siren:123456789",
+        "123456789",
+    ]
+    assert _subject_id_aliases("domain:example.com") == ["domain:example.com"]
+
+
+def test_workspace_returns_evidence_referenced_only_by_a_score():
+    evidence_ids = _workspace_evidence_ids(
+        [{"evidence_refs": ["fact-proof"]}],
+        [
+            {"dimension": "timing", "evidence_refs": ["score-only-proof"]},
+            {"dimension": "missing", "evidence_refs": []},
+        ],
+    )
+
+    assert evidence_ids == ["fact-proof", "score-only-proof"]
 
 
 def test_company_memory_rejects_a_lead_without_an_objective():

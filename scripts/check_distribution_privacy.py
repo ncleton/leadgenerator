@@ -11,6 +11,10 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 CODEX_HOME = Path.home() / ".codex"
 TEXT_SUFFIXES = {
+    ".cjs",
+    ".js",
+    ".html",
+    ".css",
     ".json",
     ".md",
     ".ps1",

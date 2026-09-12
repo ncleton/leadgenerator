@@ -1,0 +1,6 @@
+campaigns:
+  - id: "example-campaign"
+    version: "1.0.0"
+    objective: "Demonstrate a synthetic business campaign"
+    required_observation_kinds: ["example.verified_fit"]
+    outcome_window_days: 15

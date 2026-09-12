@@ -56,7 +56,61 @@ def test_installers_require_current_codex_and_run_the_real_mcp_verifier():
         assert "0.153.4" in installer
         assert "verify_installed_plugin.py" in installer
         assert "--python 3.13" in installer
-        assert "un simple nouvel onglet ne recharge pas les plugins" in installer
+
+
+def test_windows_installer_is_turnkey_and_avoids_inherited_path_failures():
+    """Windows clients get prerequisites and a stable absolute MCP command."""
+    powershell = (ROOT / "scripts" / "install_client.ps1").read_text(encoding="utf-8")
+    launcher = (ROOT / "scripts" / "install_client.cmd").read_text(encoding="utf-8")
+
+    assert "https://astral.sh/uv/install.ps1" in powershell
+    assert "https://chatgpt.com/codex/install.ps1" in powershell
+    assert "$env:UV_PROJECT_ENVIRONMENT = $BootstrapVenv" in powershell
+    assert "Write-InstalledMcpConfig" in powershell
+    assert "--uv-command $UvBin" in powershell
+    assert "-ExecutionPolicy Bypass" in launcher
+    assert '"%~dp0install_client.ps1"' in launcher
+
+
+def test_installed_verifier_accepts_an_explicit_uv_executable(monkeypatch):
+    """The smoke test must not depend on PATH after a Windows bootstrap."""
+    verifier = load_verifier()
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "verify_installed_plugin.py",
+            "--plugin-root",
+            str(PLUGIN_ROOT),
+            "--uv-command",
+            sys.executable,
+        ],
+    )
+
+    args = verifier.parse_args()
+
+    assert args.plugin_root == str(PLUGIN_ROOT)
+    assert args.uv_command == sys.executable
+
+
+def test_validation_limits_pytest_collection_to_repository_tests():
+    """Private external artifacts must never be traversed by the release checks."""
+    validation = (ROOT / "scripts" / "validate.sh").read_text(encoding="utf-8")
+
+    assert "pytest -c plugins/leadgenerator/pyproject.toml tests" in validation
+
+
+def test_public_browser_uses_standard_playwright_without_stealth_evasion():
+    """Public collection must not disguise automation or bypass access controls."""
+    project = (PLUGIN_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    browser = (PLUGIN_ROOT / "src/leadgenerator/research/browser.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert "undetected-playwright" not in project
+    assert "Malenia" not in browser
+    assert "apply_stealth" not in browser
 
 
 def test_manifest_starter_prompts_fit_codex_limits():
@@ -68,3 +122,12 @@ def test_manifest_starter_prompts_fit_codex_limits():
 
     assert 1 <= len(prompts) <= 3
     assert all(len(prompt) <= 128 for prompt in prompts)
+
+
+def test_plugin_mcp_waits_for_cold_start_before_building_tool_catalog():
+    """Codex must not drop the local server during its short optional grace period."""
+    mcp_config = json.loads((PLUGIN_ROOT / ".mcp.json").read_text(encoding="utf-8"))
+    server = mcp_config["mcpServers"]["leadgenerator"]
+
+    assert server["required"] is True
+    assert server["startup_timeout_sec"] >= 10

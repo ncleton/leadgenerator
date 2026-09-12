@@ -8,17 +8,19 @@ authors = [{ name = "Yaka Performance" }]
 dependencies = [
     "beautifulsoup4>=4.14.3",
     "html2text>=2025.4.15",
+    "jsonschema>=4.25.1,<5.0.0",
     "mcp>=2.2.0,<3.0.0",
     "playwright>=1.57.0",
     "psycopg[binary]>=3.2.0,<4.0.0",
+    "pyyaml>=6.0.2,<7.0.0",
     "pypdf>=6.0.0,<7.0.0",
     "pydantic>=2.12.5",
-    "undetected-playwright>=0.3.0",
 ]
 
 [project.scripts]
 leadgenerator-mcp = "leadgenerator.mcp.server:main"
 leadgenerator-migrate-profiles = "leadgenerator.profiles.migration:main"
+leadgenerator-migrate-modular = "leadgenerator.kernel.migration:main"
 
 [dependency-groups]
 dev = [

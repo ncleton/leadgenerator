@@ -1,0 +1,10 @@
+scorecards:
+  - id: "example-scorecard"
+    version: "1.0.0"
+    dimensions:
+      - id: "verified-fit"
+        maximum: 20
+        missing_policy: "neutral"
+      - id: "recent-timing"
+        maximum: 15
+        missing_policy: "manual_review"

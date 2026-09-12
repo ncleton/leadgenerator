@@ -11,6 +11,10 @@ the workflow, not an optional presentation layer: never replace them with a gene
 web search, a Markdown-only company list, or an undocumented CLI. Keep observed
 facts, evidence, hypotheses, and missing information separate. Never send outreach.
 
+Read [references/hosts.md](references/hosts.md) when running in Claude or when a
+browser, UI or scheduling capability is unavailable. Host-specific tool names are
+not interchangeable. The server's interface-mode response includes a `host` contract.
+
 ## Reuse the private company memory
 
 For a question about a named company, SIREN, or domain, call
@@ -62,6 +66,14 @@ facts, evidence, hypotheses, and missing information as readable text with links
 Never infer `text_only` from a missing render call: `chat_ui` is the default and
 may be disabled only by the persisted preference set from an explicit user request.
 
+When contact research needs LinkedIn, use $lead-linkedin-browser. Reuse the
+user's current host browser session and verify its visible state. If login is required,
+show the browser pane (not just a hidden tab), immediately ask the user to connect
+directly, and keep the tab open. Resume connected research after their reply and
+a fresh visible check. An explicit request to use their account already authorizes
+this workflow. Do not export cookies or require a separate browser. Company-only
+research remains available while awaiting login.
+
 ## Chat UI completion invariant
 
 Apply this section only in `chat_ui` mode. For every request to find, source,
@@ -84,12 +96,14 @@ succeeded in the current turn. If an MCP tool or resource is unavailable, stop
 and explain that the plugin installation must be repaired; do not silently fall
 back to web search or claim that a UI was shown.
 
+Read [references/ui-contract.md](references/ui-contract.md) before constructing
+the first enriched card in a session; research and rendering models use different
+field names. Correct a rejected render call without repeating completed research.
+
 The map/list is the sourcing view. Show it immediately. After the user selects
 leads or after each material qualification step, call `render_lead_workspace` so
 the chat shows the complete objective-scoped journey:
 
-- **Objectifs** for persistent agents, their instructions, examples, context, and
-  attached documents.
 - **Pipeline** for stage-by-stage progress.
 - **Entreprises** for legal facts, signals, evidence, and missing information.
 - **Contacts** for verified public decision-makers and enrichment provenance.
@@ -98,9 +112,17 @@ the chat shows the complete objective-scoped journey:
   confirmation preview.
 
 Pass `check_lead_integrations` results into the workspace without exposing keys.
+Pass the same conversation/browser observation scope as `browser_scope_id` so
+the Contacts view shows the actual LinkedIn blocker and resume action.
 Choose the initial tab that matches the user's last request. Treat every workspace
 button as conversational intent only: a click may prepare the next step, but is
 never confirmation for a paid lookup or CRM write.
+
+Qualification normally opens `initial_view: companies`; contact work opens
+`contacts`, and explicit visual review opens `visuals`. Do not render or reopen
+the objective manager during enrichment. Objective resolution is a background
+scope check, not a request to show all objectives. Show the manager only when
+the user asks for objectives/settings. Clarify ambiguous scope briefly in chat.
 
 ## Complete public enrichment invariant
 
@@ -117,15 +139,16 @@ website, one leader, or one image. For every selected company:
 4. validate the current leader with a non-LinkedIn source, then collect a public
    profile image, description, news, and recent publicly accessible posts when
    available;
-5. discover the publicly accessible professional profiles associated with the
-   exact company, state how many were found and actually reviewed, and disclose
-   any coverage limit. Never log in to, scrape behind, or bypass LinkedIn access
-   controls. If the user requests a login or cookie reuse, say in concise French
-   that Lead Generator never asks for credentials, MFA codes, cookies, or an
-   exported browser session. Continue with public professional sources and keep
-   only reviewable public profile URLs under the active objective;
-6. rank and render at most the five best contacts for the objective, preserving
-   identity evidence, profile rationale, and public-profile status. Each can be
+5. discover professional profiles associated with the exact company, using
+   public sources and, when authorized, $lead-linkedin-browser with the user's
+   account in the current host browser. Collect visible profile photos and recent posts with their
+   access mode, exact source and observed date. State how many profiles were
+   found and actually reviewed, and disclose coverage limits. Keep the browser
+   open, hand off login when needed, and never bypass an access barrier;
+6. call `get_linkedin_public_capabilities`, then
+   `rank_public_contact_profiles`; rank and render at most the five best contacts
+   for the objective, preserving identity evidence, profile rationale, dated
+   dated post summaries with their access mode, and profile status. Each can be
    publicly enriched and explicitly retained as a contact without a CRM write;
 7. rerender the complete Lead Generator interface with facts, sources, hypotheses,
    gaps, three visuals, leader, news, coverage, top contacts, and angle.
@@ -137,6 +160,13 @@ starts the guarded `$lead-contact-enrichment` preview and requires explicit
 confirmation at the point of transmission.
 
 ## Resolve the objective agent
+
+Objective management is available before research scope is selected. When the user
+asks to inspect or edit objectives, their documents, or per-objective schedules,
+read the interface mode and call `render_lead_objectives` (or list/get the records
+in text-only mode). Do not ask for their offer or seller website just to open
+settings. The manager loads the saved records itself and never starts sourcing.
+For scheduling, read [references/scheduling.md](references/scheduling.md).
 
 For every lead, company, contact, enrichment, document, or CRM request, call
 `resolve_lead_objective` before choosing a pipeline skill. Pass the user's current
@@ -155,8 +185,11 @@ the UI, and attachment names. Apply its result exactly:
   language, naming the one active objective and the exact incompatible criterion,
   then ask whether to create a new objective for the current request. Do not show
   a menu of other objectives.
-- `ambiguous`: ask one concise clarification naming only the plausible objectives.
-  Do not search, scrape, enrich, or render a lead result until the user chooses.
+- `ambiguous`: ask the user to choose among the returned saved objectives. If
+  none has a strong semantic match, the router returns the existing objectives
+  as choices; do not ask again what the user sells. Ask briefly in chat; display
+  `render_lead_objectives` only if the user requests that manager. Do not search,
+  scrape, enrich, or render a lead result until the user chooses.
 - `unconfigured`: ask the returned `clarification_prompt`, including its concrete
   example, then stop. Do not search, browse, enrich, or render a lead result.
 - `not_applicable`: return to the general assistant only for a genuinely non-lead
@@ -168,9 +201,9 @@ a preliminary registry search.
 
 An explicit UI objective or a conversation already attached to an objective wins.
 With one active objective, select it automatically for lead work without asking.
-With several objectives, select one only when the match is clear; otherwise ask.
-Never list every active objective as a fallback: show names only when the router
-returns several genuinely plausible candidates. When an explicit request conflicts
+With several objectives, select one only when the match is clear; otherwise ask
+the user to choose among the saved objectives returned by the router. Reserve
+the offer-onboarding question for an empty objective store. When an explicit request conflicts
 with the selected objective's saved geography or another hard criterion, explain
 the mismatch and ask whether the user wants a new objective instead of silently
 changing scope.
@@ -208,6 +241,8 @@ has actually been read. Do not announce a target, employee threshold, geography,
 or search filters before completing these steps:
 
 1. call `scrape_public_page` on the saved homepage;
+   preserve its `logo_candidate` and other `visual_candidates` in the lead being
+   assembled instead of repeating or losing the visual discovery step;
 2. follow and scrape up to three relevant same-domain offer, product, solution,
    customer, or use-case pages discovered there;
 3. separate explicit website claims from your hypotheses and produce a bounded

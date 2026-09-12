@@ -1,0 +1,24 @@
+apiVersion: leadgenerator.yaka/v1
+kind: Plugin
+metadata:
+  id: yaka.hubspot
+  version: 1.0.0
+  tier: native
+spec:
+  requiresSdk: ">=1.0.0,<2.0.0"
+  runtime: python
+  entrypoint: leadgenerator.native.activators:activate_hubspot
+  provides: [crm.hubspot]
+  requires: [observations, approvals, company-memory]
+  contributes:
+    - registry: workflow.steps
+      ids: [hubspot.sync]
+    - registry: ui.panels
+      ids: [hubspot.handoff]
+  permissions:
+    network: [api.hubapi.com]
+    secrets: [HUBSPOT_ACCESS_TOKEN]
+    externalWrites: true
+  configuration:
+    schema: config.schema.json
+  healthCheck: services

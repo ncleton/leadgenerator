@@ -1,0 +1,17 @@
+apiVersion: "leadgenerator.yaka/v1"
+kind: "Plugin"
+metadata:
+  id: "yaka.example-native"
+  version: "1.0.0"
+  tier: "native"
+spec:
+  requiresSdk: ">=1.0.0,<2.0.0"
+  runtime: "python"
+  entrypoint: "leadgenerator.native.example:activate"
+  provides: ["example.native"]
+  requires: ["observations"]
+  contributes: []
+  permissions: {}
+  configuration:
+    schema: "config.schema.json"
+  healthCheck: "services"

@@ -20,7 +20,7 @@ NAF code or calling any company-search service.
 3. Read `get_lead_interface_mode`, then search the official register. For one
    explicit NAF/APE code call `search_companies_by_naf`. For several codes or
    combined filters call `search_french_companies`. When `interface_enabled` is
-   true, immediately pass the returned leads to `render_lead_explorer`; the search
+   true, complete missing geolocation, then pass the returned leads to `render_lead_explorer`; the search
    tools deliberately do not own a UI template so text-only mode remains possible.
    Both search tools persist returned identities in private local PostgreSQL and
    exclude companies already seen in earlier searches. Preserve this default;
@@ -38,6 +38,13 @@ NAF code or calling any company-search service.
    exclude every company whose headquarters does not satisfy the same geography
    and activity filters. Pass the same value to `render_lead_explorer` so the
    checkbox reflects the server-side result.
+   Every displayed lead must have sourced latitude and longitude. Geocode the
+   verified project address first (IGN/BAN for France). When only the street,
+   business park, or municipality is verified, geocode that area, set
+   `precision: approximate`, and state that granularity in the location label.
+   Never substitute an unrelated headquarters or invent a building position.
+   Do not discard leads to satisfy the render gate; if geocoding cannot be
+   completed, report the blocker rather than render a partially populated map.
 4. In `chat_ui`, do not finish with a text-only list or Markdown table. A
    successful visual sourcing turn ends with exactly one
    `render_lead_explorer` call, even when the result is empty. Treat that explorer

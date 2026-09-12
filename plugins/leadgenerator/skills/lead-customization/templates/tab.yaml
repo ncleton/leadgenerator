@@ -1,0 +1,12 @@
+ui:
+  tabs:
+    - tab_id: "sector-signals"
+      label: "Signaux sectoriels"
+      order: 35
+      panels:
+        - panel_id: "sector-signals.timeline"
+          title: "Évolution"
+          component: "timeline"
+          observation_kind: "sector.signal_trend"
+          empty_state: "Historique indisponible."
+          order: 10

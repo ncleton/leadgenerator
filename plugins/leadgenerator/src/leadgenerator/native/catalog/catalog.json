@@ -1,0 +1,31 @@
+{
+  "schema_version": "1.0",
+  "files": {
+    "yaka-company-memory/config.schema.json": "67c0a3e017f62ab8fa45adf3782967e9fd83fd25da2b4cecd06cfb1ca77e2afa",
+    "yaka-company-memory/plugin.yaml": "e9bf0438d1659c7e618fef1f1c58aedd4dd958f9fa3bd3a6465c7e848bb5de4a",
+    "yaka-company-qualification/config.schema.json": "67c0a3e017f62ab8fa45adf3782967e9fd83fd25da2b4cecd06cfb1ca77e2afa",
+    "yaka-company-qualification/plugin.yaml": "9a17347ef281707beebf80164a83cf4e5cd8ee71e75859aae1a260b50ad9ad2b",
+    "yaka-company-registry-fr/config.schema.json": "67c0a3e017f62ab8fa45adf3782967e9fd83fd25da2b4cecd06cfb1ca77e2afa",
+    "yaka-company-registry-fr/plugin.yaml": "0b8dd71c841eec420d74ebd9a261cd82ee957eca124a0b1a0547f15ca4db4725",
+    "yaka-contact-ranking/config.schema.json": "67c0a3e017f62ab8fa45adf3782967e9fd83fd25da2b4cecd06cfb1ca77e2afa",
+    "yaka-contact-ranking/plugin.yaml": "e2ba7a1fa860a140ee2f17518d0769179b0e3c692e8650645d0c28013b0669ae",
+    "yaka-enrow/config.schema.json": "67c0a3e017f62ab8fa45adf3782967e9fd83fd25da2b4cecd06cfb1ca77e2afa",
+    "yaka-enrow/plugin.yaml": "66eaa8860e1e26ba57dd907a939cb272a98b4d7791f25e6ccf5deac8f2f8cd22",
+    "yaka-fullenrich/config.schema.json": "67c0a3e017f62ab8fa45adf3782967e9fd83fd25da2b4cecd06cfb1ca77e2afa",
+    "yaka-fullenrich/plugin.yaml": "95b158e480e632a0139a6ebef7c8c7567ea9de5116f8159ebdb28276e94d9c2b",
+    "yaka-hubspot/config.schema.json": "67c0a3e017f62ab8fa45adf3782967e9fd83fd25da2b4cecd06cfb1ca77e2afa",
+    "yaka-hubspot/plugin.yaml": "542b9cbabbe773c1e66682216d26c908b2d2b2734e4a34cdad2d8c61c2cf791a",
+    "yaka-linkedin-public/config.schema.json": "67c0a3e017f62ab8fa45adf3782967e9fd83fd25da2b4cecd06cfb1ca77e2afa",
+    "yaka-linkedin-public/plugin.yaml": "00e5dc442c65847202bbbb4db11160b6815b66395f7b3ef3ee2b14f64573ca36",
+    "yaka-linkedin-session/config.schema.json": "67c0a3e017f62ab8fa45adf3782967e9fd83fd25da2b4cecd06cfb1ca77e2afa",
+    "yaka-linkedin-session/plugin.yaml": "bb75f8fc77028b5e66b7d20366d7fe69454057f4dc9e6693bcb6bd01e074434f",
+    "yaka-objectives/config.schema.json": "67c0a3e017f62ab8fa45adf3782967e9fd83fd25da2b4cecd06cfb1ca77e2afa",
+    "yaka-objectives/plugin.yaml": "53e276673f76c9116cd750eb38d27ee9f9e8bb9a6463506ade7b24af6e4b3ffc",
+    "yaka-public-web/config.schema.json": "67c0a3e017f62ab8fa45adf3782967e9fd83fd25da2b4cecd06cfb1ca77e2afa",
+    "yaka-public-web/plugin.yaml": "7d1ee931ed842abd766cdb4bdbf50f4e403733af6c8aced10418be9d894514b8",
+    "yaka-scorecard/config.schema.json": "67c0a3e017f62ab8fa45adf3782967e9fd83fd25da2b4cecd06cfb1ca77e2afa",
+    "yaka-scorecard/plugin.yaml": "2f529439f93b20f5ef839a52e6a77564fb6eb1c446593638a6696e82e2e60192",
+    "yaka-ui-workspace/config.schema.json": "67c0a3e017f62ab8fa45adf3782967e9fd83fd25da2b4cecd06cfb1ca77e2afa",
+    "yaka-ui-workspace/plugin.yaml": "6b581182a0a00dec543121437cf78bf5b48c7f2674ca5dc14b105809419c9489"
+  }
+}

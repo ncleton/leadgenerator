@@ -8,6 +8,16 @@ from urllib.parse import urlparse
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from leadgenerator.kernel.composition import get_runtime
+from leadgenerator.kernel.contracts import (
+    ActionDescriptor,
+    Evidence,
+    Observation,
+    ScoreContribution,
+    WorkspaceViewModel,
+)
+from leadgenerator.kernel.customization import effective_ui_payload
+from leadgenerator.kernel.legacy_adapter import project_legacy_leads
 from leadgenerator.research.aerial import build_ign_aerial_image_url
 
 NAF_CODE_PATTERN = re.compile(r"^\d{2}\.\d{2}[A-Z]$")
@@ -85,6 +95,10 @@ class LeadPublicPostView(BaseModel):
     source_url: str = Field(max_length=1000)
     published_at: str | None = Field(default=None, max_length=80)
     platform: str | None = Field(default=None, max_length=80)
+    observed_at: str | None = Field(default=None, max_length=80)
+    access_mode: Literal[
+        "public_page", "public_search_result", "authenticated_browser"
+    ] = "public_page"
 
     _source_is_public = field_validator("source_url")(_validate_public_url)
 
@@ -99,6 +113,10 @@ class LeadContactView(BaseModel):
     role: str | None = Field(default=None, max_length=300)
     linkedin_url: str | None = Field(default=None, max_length=1000)
     profile_image_url: str | None = Field(default=None, max_length=1000)
+    profile_image_source_url: str | None = Field(default=None, max_length=1000)
+    profile_image_access_mode: Literal["public_page", "authenticated_browser"] = (
+        "public_page"
+    )
     work_email: str | None = Field(default=None, max_length=320)
     phone: str | None = Field(default=None, max_length=80)
     evidence: str = Field(min_length=1, max_length=700)
@@ -125,6 +143,9 @@ class LeadContactView(BaseModel):
 
     _linkedin_is_public = field_validator("linkedin_url")(_validate_public_url)
     _image_is_public = field_validator("profile_image_url")(_validate_public_url)
+    _image_source_is_public = field_validator("profile_image_source_url")(
+        _validate_public_url
+    )
     _source_is_public = field_validator("source_url")(_validate_public_url)
 
     @field_validator("evidence_urls")
@@ -166,10 +187,24 @@ class LeadPipelineView(BaseModel):
 class IntegrationView(BaseModel):
     """Secret-free connection state displayed in the workspace."""
 
-    service: Literal["enrow", "fullenrich", "hubspot"]
-    status: Literal["not_configured", "configured", "connected", "invalid"]
+    service: Literal[
+        "linkedin_public", "linkedin_review", "enrow", "fullenrich", "hubspot"
+    ]
+    status: Literal[
+        "available",
+        "not_configured",
+        "configured",
+        "connected",
+        "invalid",
+        "disabled",
+        "unknown",
+        "login_required",
+        "checkpoint",
+        "unavailable",
+    ]
     purpose: str = Field(min_length=1, max_length=500)
     recommendation: str = Field(min_length=1, max_length=700)
+    observed_at: str | None = Field(default=None, max_length=80)
 
 
 class HubSpotPreview(BaseModel):
@@ -274,6 +309,21 @@ class LeadViewItem(BaseModel):
         _validate_public_url
     )
 
+    @model_validator(mode="after")
+    def retain_visual_candidates_on_card(self) -> "LeadViewItem":
+        """Use sourced candidates without overwriting explicit values or clears."""
+        for field, kind in (
+            ("logo_url", "logo"),
+            ("representative_image_url", "representative_image"),
+        ):
+            if field in self.model_fields_set:
+                continue
+            candidate = next((item for item in self.visuals if item.kind == kind), None)
+            if candidate is not None:
+                # Derived display values are not explicit memory-update fields.
+                object.__setattr__(self, field, candidate.image_url)
+        return self
+
     @field_validator("outreach_angle_source_urls")
     @classmethod
     def outreach_sources_are_public(cls, values: list[str]) -> list[str]:
@@ -281,6 +331,36 @@ class LeadViewItem(BaseModel):
         return [
             value for value in (_validate_public_url(item) for item in values) if value
         ]
+
+    @model_validator(mode="after")
+    def contacts_belong_to_parent(self) -> "LeadViewItem":
+        """Reject cross-company or cross-objective contacts instead of relabeling."""
+        people = self.contacts + ([self.director] if self.director else [])
+        for contact in people:
+            if (
+                self.siren
+                and contact.company_siren
+                and self.siren != contact.company_siren
+            ):
+                raise ValueError("Le contact appartient à une autre entreprise.")
+            if (
+                self.objective_id
+                and contact.objective_id
+                and self.objective_id != contact.objective_id
+            ):
+                raise ValueError("Le contact appartient à un autre objectif.")
+        bound_contacts = [
+            contact.model_copy(
+                update={
+                    "company_siren": contact.company_siren or self.siren,
+                    "objective_id": contact.objective_id or self.objective_id,
+                }
+            )
+            for contact in self.contacts
+        ]
+        if self.contacts:
+            self.contacts = bound_contacts
+        return self
 
     @model_validator(mode="after")
     def profile_counts_are_consistent(self) -> "LeadViewItem":
@@ -300,6 +380,16 @@ class LeadViewItem(BaseModel):
     def validate_optional_naf_code(_cls, value: str | None) -> str | None:
         """Canonicalize a NAF code when one is present."""
         return normalize_naf_code(value) if value else None
+
+
+def scope_lead(lead: LeadViewItem, objective_id: str | None) -> LeadViewItem:
+    """Bind an objective and revalidate nested identities without inventing fields."""
+    if objective_id and lead.objective_id not in {None, objective_id}:
+        raise ValueError("Un lead appartient à un autre objectif actif.")
+    values = lead.model_dump(mode="python", exclude_unset=True)
+    if objective_id:
+        values["objective_id"] = objective_id
+    return LeadViewItem.model_validate(values)
 
 
 def _with_derived_aerial_image(lead: LeadViewItem) -> LeadViewItem:
@@ -331,6 +421,10 @@ def lead_explorer_payload(
     source_url: str | None = None,
     objective_id: str | None = None,
     headquarters_only: bool = False,
+    observations: list[Observation] | None = None,
+    evidence: list[Evidence] | None = None,
+    scores: list[ScoreContribution] | None = None,
+    actions: list[ActionDescriptor] | None = None,
 ) -> dict[str, object]:
     """Build the stable structured result consumed by the chat interface."""
     normalized_naf_code = normalize_naf_code(naf_code) if naf_code else None
@@ -338,13 +432,29 @@ def lead_explorer_payload(
     for lead in leads:
         if objective_id and lead.objective_id not in {None, objective_id}:
             raise ValueError("Un lead appartient à un autre objectif actif.")
-        scoped_leads.append(
-            _with_derived_aerial_image(
-                lead.model_copy(update={"objective_id": objective_id})
-                if objective_id and lead.objective_id is None
-                else lead
-            )
-        )
+        scoped_leads.append(_with_derived_aerial_image(scope_lead(lead, objective_id)))
+    ui = effective_ui_payload(objective_id=objective_id)
+    subject_rows = [
+        lead.model_dump(mode="json", exclude_none=True, exclude_defaults=True)
+        for lead in scoped_leads
+    ]
+    projected_evidence, projected_observations = project_legacy_leads(subject_rows)
+    view_model = WorkspaceViewModel(
+        composition=get_runtime().report(),
+        navigation=ui.get("navigation", {}),
+        subjects=subject_rows,
+        observations=projected_observations if observations is None else observations,
+        evidence=projected_evidence if evidence is None else evidence,
+        scores=scores or [],
+        actions=actions or [],
+        tabs=ui.get("tabs", []),
+        safety={
+            "facts_are_sourced": True,
+            "hypotheses_are_unverified": True,
+            "human_review_required": True,
+            "outreach_sent": False,
+        },
+    )
     return {
         "kind": "lead_explorer",
         "schema_version": "2.0",
@@ -363,6 +473,10 @@ def lead_explorer_payload(
         "headquarters_only": headquarters_only,
         "selected_ids": [],
         "source_url": _validate_public_url(source_url),
+        "ui": ui,
+        "workspace_view_model": view_model.model_dump(
+            mode="json", exclude_none=True, exclude_defaults=True
+        ),
         "safety": {
             "facts_are_sourced": True,
             "hypotheses_are_unverified": True,
@@ -376,7 +490,13 @@ def lead_workspace_payload(
     leads: list[LeadViewItem],
     *,
     initial_view: Literal[
-        "pipeline", "companies", "contacts", "visuals", "hubspot"
+        "objectives",
+        "pipeline",
+        "companies",
+        "contacts",
+        "visuals",
+        "hubspot",
+        "settings",
     ] = "pipeline",
     search_summary: str = "",
     search_filters: dict[str, Any] | None = None,
@@ -386,6 +506,11 @@ def lead_workspace_payload(
     objectives: list[dict[str, Any]] | None = None,
     active_objective_id: str | None = None,
     objective_resolution: dict[str, Any] | None = None,
+    observations: list[Observation] | None = None,
+    evidence: list[Evidence] | None = None,
+    scores: list[ScoreContribution] | None = None,
+    actions: list[ActionDescriptor] | None = None,
+    preferences: dict[str, Any] | None = None,
 ) -> dict[str, object]:
     """Build the complete visual workflow without authorizing external actions."""
     scoped_leads = []
@@ -396,12 +521,44 @@ def lead_workspace_payload(
         }:
             raise ValueError("Un lead appartient à un autre objectif actif.")
         scoped_leads.append(
-            _with_derived_aerial_image(
-                lead.model_copy(update={"objective_id": active_objective_id})
-                if active_objective_id and lead.objective_id is None
-                else lead
-            )
+            _with_derived_aerial_image(scope_lead(lead, active_objective_id))
         )
+    ui = effective_ui_payload(objective_id=active_objective_id)
+    safety = {
+        "facts_are_sourced": True,
+        "hypotheses_are_unverified": True,
+        "human_review_required": True,
+        "paid_lookup_confirmed": False,
+        "crm_write_confirmed": False,
+        "outreach_sent": False,
+    }
+    subject_rows = [
+        lead.model_dump(mode="json", exclude_none=True, exclude_defaults=True)
+        for lead in scoped_leads
+    ]
+    projected_evidence, projected_observations = project_legacy_leads(subject_rows)
+    view_model = WorkspaceViewModel(
+        composition=get_runtime().report(),
+        navigation=ui.get("navigation", {}),
+        subjects=subject_rows,
+        observations=projected_observations if observations is None else observations,
+        evidence=projected_evidence if evidence is None else evidence,
+        scores=scores or [],
+        contacts=[
+            {
+                **contact.model_dump(mode="json", exclude_none=True),
+                "company_id": lead.id,
+                "company_name": lead.company_name,
+                "objective_id": lead.objective_id,
+            }
+            for lead in scoped_leads
+            for contact in lead.contacts
+        ],
+        actions=actions or [],
+        tabs=ui.get("tabs", []),
+        warnings=limitations or [],
+        safety=safety,
+    )
     return {
         "kind": "lead_workspace",
         "schema_version": "4.0",
@@ -428,12 +585,10 @@ def lead_workspace_payload(
         "active_objective_id": active_objective_id,
         "objective_resolution": objective_resolution or {},
         "selected_ids": [],
-        "safety": {
-            "facts_are_sourced": True,
-            "hypotheses_are_unverified": True,
-            "human_review_required": True,
-            "paid_lookup_confirmed": False,
-            "crm_write_confirmed": False,
-            "outreach_sent": False,
-        },
+        "preferences": preferences or {"desired_lead_count": 10},
+        "ui": ui,
+        "workspace_view_model": view_model.model_dump(
+            mode="json", exclude_none=True, exclude_defaults=True
+        ),
+        "safety": safety,
     }
