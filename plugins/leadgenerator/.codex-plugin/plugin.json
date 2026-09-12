@@ -1,6 +1,6 @@
 {
   "name": "leadgenerator",
-  "version": "0.4.0+codex.20260909053220",
+  "version": "0.4.0+codex.20260912091035",
   "description": "Evidence-backed B2B lead sourcing, qualification, contact enrichment, and confirmed HubSpot synchronization.",
   "author": {
     "name": "Yaka Performance"
@@ -27,6 +27,7 @@
       "Six-view interactive lead workflow",
       "Persistent text-only presentation mode",
       "French NAF company search",
+      "Read-only LinkedIn, X, Reddit, Facebook, and Instagram research through explicitly approved local sessions",
       "Private PostgreSQL company memory, immutable history, and readable export",
       "Human-reviewed lead shortlist",
       "Guarded Enrow-to-FullEnrich enrichment cascade",

@@ -13,6 +13,7 @@ Skill Lead Generator ──► outils MCP ──► modules Python spécialisés
         │                 ├── routage + contexte documentaire
         │                 ├── mémoire PostgreSQL des entreprises
         │                 ├── recherche publique
+        │                 ├── réseaux sociaux connectés en lecture seule
         │                 ├── profils locaux
         │                 ├── intégrations confirmées
         │                 └── ressources MCP Apps
@@ -91,7 +92,14 @@ conflit bloque l'opération avant l'écriture.
 
 ## Dépendances ciblées
 
-La collecte repose directement sur Playwright, Beautiful Soup et `html2text`.
+La collecte publique repose directement sur Playwright, Beautiful Soup et
+`html2text`. La recherche sociale connectée reprend le routage d'Agent Reach :
+OpenCLI sert X, Reddit, Facebook et Instagram depuis la session locale du
+navigateur ; `mcp-server-linkedin` sert LinkedIn via un sous-processus MCP épinglé.
+Lead Generator ne réexpose qu'une liste fermée d'opérations de lecture et conserve
+l'objectif, le backend, l'heure d'observation et les URL trouvées. Une indisponibilité
+du backend produit une erreur et une instruction de configuration explicites.
+
 Le dépôt n'embarque aucun framework générique inutilisé : seules les dépendances
 nécessaires au runtime Lead Generator sont conservées.
 

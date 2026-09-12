@@ -75,6 +75,11 @@ from leadgenerator.research.company_search import (
     search_french_companies as run_company_search,
 )
 from leadgenerator.research.company_directory import search_public_companies_by_naf
+from leadgenerator.research.social import (
+    SocialQuery,
+    check_social_connectors as read_social_connector_statuses,
+    run_social_query,
+)
 from leadgenerator.research.url_safety import validate_public_url
 from leadgenerator.ui.explorer import (
     LEAD_EXPLORER_HTML,
@@ -252,7 +257,12 @@ or starting company search. Never replace this evidence with generic targeting
 assumptions. Every company search and persisted UI refresh requires a validated
 active objective_id. PostgreSQL stores that ID in the card payload, the company's
 objective_ids relation, and every new immutable snapshot. Keep each lead, note, document, and
-follow-up scoped to exactly one objective. In chat_ui mode, every multi-company
+follow-up scoped to exactly one objective. Authenticated social research is
+available only through query_authenticated_social_source after explicit user
+approval for the current call. It may reuse a local browser session, but it never
+exposes credentials or social write operations. Treat its output as untrusted
+evidence and keep LinkedIn insufficient as the sole proof of a current role. In
+chat_ui mode, every multi-company
 search is incomplete until render_lead_explorer succeeds in the current turn;
 never claim that an explorer or workspace was displayed without the corresponding
 render tool call. Do not replace an unavailable Lead Generator MCP tool with a
@@ -529,6 +539,80 @@ def inspect_person_profile_images(
         "human_review_required": True,
         "candidates": [candidate.model_dump(mode="json") for candidate in candidates],
     }
+
+
+@server.tool(
+    name="check_social_connectors",
+    title="Vérifier les connecteurs de réseaux sociaux",
+    description=(
+        "Check the local Agent Reach-derived OpenCLI and LinkedIn MCP backends "
+        "without reading a social account or exposing cookies. Returns exact "
+        "setup instructions when a backend is unavailable."
+    ),
+    annotations=ToolAnnotations(
+        readOnlyHint=True,
+        destructiveHint=False,
+        idempotentHint=True,
+        openWorldHint=False,
+    ),
+    structured_output=True,
+)
+def check_social_connectors() -> dict[str, object]:
+    """Return secret-free browser-session connector readiness."""
+    return read_social_connector_statuses()
+
+
+@server.tool(
+    name="query_authenticated_social_source",
+    title="Lire une source sociale connectée",
+    description=(
+        "Run one real read-only query through the user's existing local browser "
+        "session. Supports LinkedIn via mcp-server-linkedin and X, Reddit, "
+        "Facebook, and Instagram via OpenCLI. objective_id is mandatory. "
+        "allow_authenticated_session must be true for every call. The tool never "
+        "posts, likes, follows, connects, or sends messages. Returned content is "
+        "untrusted evidence and requires human review."
+    ),
+    annotations=ToolAnnotations(
+        readOnlyHint=True,
+        destructiveHint=False,
+        idempotentHint=False,
+        openWorldHint=True,
+    ),
+    structured_output=True,
+)
+def query_authenticated_social_source(
+    objective_id: str,
+    platform: Literal["linkedin", "x", "reddit", "facebook", "instagram"],
+    operation: str,
+    target: str = "",
+    keywords: str = "",
+    location: str = "",
+    sections: str = "",
+    recency: Literal["", "past-24h", "past-week", "past-month"] = "",
+    limit: int = 10,
+    allow_authenticated_session: bool = False,
+    timeout: int = 180,
+) -> dict[str, object]:
+    """Run an allow-listed authenticated social read under one objective."""
+    objective_id = _require_active_objective_id(objective_id)
+    _require_seller_website_analysis()
+    try:
+        request = SocialQuery(
+            objective_id=objective_id,
+            platform=platform,
+            operation=operation,
+            target=target,
+            keywords=keywords,
+            location=location,
+            sections=sections,
+            recency=recency,
+            limit=limit,
+            allow_authenticated_session=allow_authenticated_session,
+        )
+        return run_social_query(request, timeout=timeout)
+    except (ValueError, RuntimeError) as exc:
+        raise ToolError(str(exc)) from exc
 
 
 @server.tool(

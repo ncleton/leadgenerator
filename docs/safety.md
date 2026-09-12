@@ -13,6 +13,21 @@ Chaque résultat distingue les faits observés, leurs URL sources, les hypothès
 commerciales et les informations manquantes. Un critère recherché mais absent
 n'est jamais transformé en signal positif.
 
+## Sessions sociales locales
+
+Les connecteurs inspirés d'Agent Reach utilisent OpenCLI pour X, Reddit, Facebook
+et Instagram, et un serveur MCP LinkedIn local épinglé pour LinkedIn. Ils sont
+inactifs tant que l'appel ne contient pas `allow_authenticated_session: true`.
+L'utilisateur se connecte uniquement dans son navigateur ou dans la fenêtre locale
+du backend LinkedIn ; aucun mot de passe, code MFA, cookie, token ou export de
+session n'est demandé dans la conversation.
+
+Seules des opérations de lecture sont autorisées. Les commandes de publication,
+commentaire, réaction, suivi, connexion et messagerie ne sont ni routées ni
+exposées. Les réponses sociales sont marquées comme contenu authentifié non fiable,
+conservent leurs URL et nécessitent une revue humaine. LinkedIn ne suffit jamais
+seul à valider le poste actuel d'un contact.
+
 ## Actions contrôlées
 
 `plan_contact_enrichment` ne dépense rien. `submit_contact_enrichment` exige
@@ -29,6 +44,9 @@ email, message, invitation ou séquence commerciale.
 Les clés restent dans les variables `ENROW_API_KEY`, `FULLENRICH_API_KEY` et
 `HUBSPOT_ACCESS_TOKEN`. Elles ne doivent apparaître ni dans un prompt, ni dans un
 profil, ni dans un log, ni dans une sortie de test.
+
+Les profils de navigateur et sessions sociales restent dans les emplacements
+privés des backends locaux, jamais dans le dépôt ou les sorties de test.
 
 Les identités vendeur, offres et critères clients restent dans
 `~/.codex/leadgenerator/`. Ils ne sont jamais générés dans un skill ou un guide

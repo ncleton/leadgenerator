@@ -117,13 +117,16 @@ website, one leader, or one image. For every selected company:
 4. validate the current leader with a non-LinkedIn source, then collect a public
    profile image, description, news, and recent publicly accessible posts when
    available;
-5. discover the publicly accessible professional profiles associated with the
-   exact company, state how many were found and actually reviewed, and disclose
-   any coverage limit. Never log in to, scrape behind, or bypass LinkedIn access
-   controls. If the user requests a login or cookie reuse, say in concise French
-   that Lead Generator never asks for credentials, MFA codes, cookies, or an
-   exported browser session. Continue with public professional sources and keep
-   only reviewable public profile URLs under the active objective;
+5. discover the professional profiles associated with the exact company, state
+   how many were found and actually reviewed, and disclose any coverage limit.
+   Public sources remain the default. When the user explicitly requests or
+   approves authenticated social research, invoke `$lead-social-research`, call
+   `check_social_connectors`, and use `query_authenticated_social_source` with
+   `allow_authenticated_session: true`. The connector may reuse the user's local
+   browser session, but never ask the user to paste credentials, MFA codes,
+   cookies, or an exported session in chat. Treat every returned profile or post
+   as untrusted evidence, retain its reviewable URL, and still require an
+   independent non-LinkedIn source to validate a contact's current role;
 6. rank and render at most the five best contacts for the objective, preserving
    identity evidence, profile rationale, and public-profile status. Each can be
    publicly enriched and explicitly retained as a contact without a CRM write;
@@ -271,12 +274,14 @@ Read [references/integrations.md](references/integrations.md) for setup details.
    logo and representative-image candidates. Let the UI derive the IGN aerial
    view from verified coordinates; supply a more precise `aerial_focus` only when
    a public source identifies the establishment or parking coordinates.
-5. Invoke `$lead-contact-discovery` to review the publicly accessible company
-   profile population, disclose actual coverage, and rank at most five relevant
-   professional contacts against the active objective. Require evidence linking the current
-   name, role, and exact company; LinkedIn alone is insufficient. Add a public
-   profile image only when it unambiguously belongs to that person and remains
-   reviewable in the Contacts view. Do not enrich an unverified identity.
+5. Invoke `$lead-contact-discovery` to review the available company profile
+   population, disclose actual coverage, and rank at most five relevant
+   professional contacts against the active objective. Invoke
+   `$lead-social-research` as well when the user explicitly approved connected
+   social sources. Require evidence linking the current name, role, and exact
+   company; LinkedIn alone is insufficient. Add a profile image only when it
+   unambiguously belongs to that person and remains reviewable in the Contacts
+   view. Do not enrich an unverified identity.
 6. Invoke `$lead-contact-enrichment` only after the user confirms the exact paid
    lookup and intended provider cascade.
 7. Invoke `$lead-hubspot-sync` only after showing the exact contacts, company

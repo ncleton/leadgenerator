@@ -11,9 +11,11 @@ from leadgenerator.mcp.server import (
     _render_lead_explorer_tool,
     _require_active_objective_id,
     check_lead_integrations,
+    check_social_connectors,
     get_lead_interface_mode,
     inspect_official_visuals,
     lead_explorer_ui,
+    query_authenticated_social_source,
     record_lead_website_analysis,
     render_lead_explorer,
     render_lead_workspace,
@@ -156,6 +158,55 @@ def test_mcp_tool_uses_user_selected_browser_mode(monkeypatch: pytest.MonkeyPatc
 
     assert result["browser_mode"] == "visible"
     assert calls == {"url": "https://example.com", "headless": False}
+
+
+def test_social_connector_status_is_exposed_without_reading_a_session(monkeypatch):
+    expected = {"connectors": {"opencli": {"state": "ready"}}}
+    monkeypatch.setattr(
+        "leadgenerator.mcp.server.read_social_connector_statuses",
+        lambda: expected,
+    )
+
+    assert check_social_connectors() == expected
+
+
+def test_authenticated_social_tool_is_objective_scoped_and_explicit(monkeypatch):
+    captured = {}
+
+    def fake_run(request, *, timeout):
+        captured.update(request=request, timeout=timeout)
+        return {
+            "objective_id": request.objective_id,
+            "platform": request.platform,
+            "operation": request.operation,
+        }
+
+    monkeypatch.setattr("leadgenerator.mcp.server.run_social_query", fake_run)
+
+    with pytest.raises(ToolError, match="explicitement autorisée"):
+        query_authenticated_social_source(
+            TEST_OBJECTIVE_ID,
+            "linkedin",
+            "search_people",
+            keywords="direction opérations",
+        )
+
+    result = query_authenticated_social_source(
+        TEST_OBJECTIVE_ID,
+        "linkedin",
+        "search_people",
+        keywords="direction opérations",
+        allow_authenticated_session=True,
+        timeout=240,
+    )
+
+    assert result == {
+        "objective_id": TEST_OBJECTIVE_ID,
+        "platform": "linkedin",
+        "operation": "search_people",
+    }
+    assert captured["request"].allow_authenticated_session is True
+    assert captured["timeout"] == 240
 
 
 def test_company_search_is_blocked_until_saved_website_was_analyzed(monkeypatch):

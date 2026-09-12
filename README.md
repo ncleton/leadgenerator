@@ -43,6 +43,12 @@ d'ambiguïté. Il fonctionne avec une interface visuelle ou en mode texte. Toute
 recherche payante ou écriture HubSpot nécessite votre accord. Les entreprises
 déjà étudiées sont mémorisées localement dans PostgreSQL, jamais dans Git.
 
+Lorsque l'utilisateur l'approuve explicitement, Lead Generator peut aussi lire
+LinkedIn, X, Reddit, Facebook et Instagram à travers ses sessions locales. Cette
+surface inspirée d'Agent Reach est strictement limitée à la lecture ; aucune action
+sociale ou prise de contact n'est exposée. Voir
+[les connecteurs sociaux](docs/social-connectors.md).
+
 ## Démarrage rapide
 
 Prérequis : [Codex](https://developers.openai.com/codex/),
@@ -178,7 +184,8 @@ uv run --project plugins/leadgenerator playwright install chromium
 
 ## Principes produit
 
-- sources professionnelles publiques et pertinentes uniquement ;
+- sources professionnelles publiques ou sessions sociales locales explicitement
+  approuvées, avec provenance conservée ;
 - faits observés, preuves et hypothèses toujours séparés ;
 - aucune donnée personnelle inventée ni contournement d'accès ;
 - aucune prospection envoyée automatiquement ;

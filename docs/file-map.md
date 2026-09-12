@@ -11,7 +11,7 @@ responsabilité visible.
 | `plugins/leadgenerator/skills/*/SKILL.md` | Procédures conversationnelles canoniques | Agent |
 | `plugins/leadgenerator/skills/*/agents/openai.yaml` | Nom, amorce et dépendance MCP de chaque skill | Interface Codex |
 | `plugins/leadgenerator/src/leadgenerator/mcp/` | Outils et ressources exposés à l'agent | Runtime MCP |
-| `plugins/leadgenerator/src/leadgenerator/research/` | Navigation, validation d'URL, registre et visuels | Outils de recherche |
+| `plugins/leadgenerator/src/leadgenerator/research/` | Navigation, validation d'URL, registre, visuels et connecteurs sociaux en lecture seule | Outils de recherche |
 | `plugins/leadgenerator/src/leadgenerator/integrations/` | Enrow, FullEnrich et HubSpot | Outils confirmés |
 | `plugins/leadgenerator/src/leadgenerator/profiles/` | Profils, objectifs, agents, routage, documents et préférence locaux | Outils de profil et de configuration |
 | `plugins/leadgenerator/src/leadgenerator/ui/` | Modèles et interfaces MCP Apps | Conversation |
@@ -31,3 +31,6 @@ responsabilité visible.
 - pas de framework générique sans usage direct ;
 - pas de profil vendeur ou client dans un skill ou un guide partageable ;
 - pas de fichier généré, export commercial ou environnement Python versionné.
+
+Les profils OpenCLI et LinkedIn MCP sont des états privés gérés hors du dépôt par
+leurs backends respectifs. Le plugin n'en copie jamais les cookies.
