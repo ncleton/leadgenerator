@@ -109,7 +109,6 @@ async def verify(plugin_root: Path, uv_command: str | None = None) -> dict[str, 
             "démarrage: la configuration MCP Windows ne pointe pas vers "
             "l'exécutable uv validé."
         )
-
     original_home = Path.home()
     with tempfile.TemporaryDirectory(
         prefix="leadgenerator-install-check-"

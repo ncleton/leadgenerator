@@ -44,6 +44,9 @@ déjà étudiées sont mémorisées localement dans PostgreSQL, jamais dans Git.
 
 ## Tester dans Claude
 
+Les connecteurs sociaux en lecture seule restent disponibles sur accord explicite :
+voir [les connecteurs sociaux](docs/social-connectors.md).
+
 La distribution Claude partage le même moteur et la même interface MCP Apps.
 Après le clonage, avec Node.js installé, préparez une fois les fichiers locaux :
 
@@ -231,7 +234,8 @@ uv run --project plugins/leadgenerator playwright install chromium
 
 ## Principes produit
 
-- sources professionnelles publiques et pertinentes uniquement ;
+- sources professionnelles publiques ou sessions sociales locales explicitement
+  approuvées, avec provenance conservée ;
 - faits observés, preuves et hypothèses toujours séparés ;
 - aucune donnée personnelle inventée ni contournement d'accès ;
 - aucune prospection envoyée automatiquement ;

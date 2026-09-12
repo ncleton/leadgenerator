@@ -7,6 +7,10 @@ All notable changes to Lead Generator are documented here. The project follows
 
 ### Added
 
+- Add Agent Reach-derived, read-only authenticated connectors for LinkedIn, X,
+  Reddit, Facebook, and Instagram, with explicit per-call approval, objective
+  scoping, backend diagnostics, provenance, and no social write operations.
+
 - Share the canonical runtime with Claude through portable packages and local
   project bootstrap templates, with guarded Desktop registration.
 - Add a modular plugin kernel, customization SDK, objective management and
@@ -26,7 +30,6 @@ All notable changes to Lead Generator are documented here. The project follows
   persistence; label approximate positions and suppress misleading aerial focus.
 - Preserve native MCP Apps negotiation, contact navigation and delayed hydration
   across supported hosts without claiming unsupported display capabilities.
-
 - Replace unrelated objective menus with a concise offer question, create a new
   objective directly from a clear selling intent, and let an explicit new-objective
   request override a stale conversation selection.

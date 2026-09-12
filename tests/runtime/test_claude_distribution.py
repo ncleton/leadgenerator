@@ -40,7 +40,14 @@ def test_generated_packages_are_portable_and_do_not_copy_codex_configuration(tmp
             assert (
                 "src/leadgenerator/kernel/schemas/plugin-manifest.schema.json" in names
             )
-            assert len([name for name in names if name.endswith("SKILL.md")]) == 9
+            expected_skills = {
+                path.parent.name
+                for path in (ROOT / "plugins/leadgenerator/skills").glob("*/SKILL.md")
+            }
+            packaged_skills = {
+                Path(name).parent.name for name in names if name.endswith("SKILL.md")
+            }
+            assert packaged_skills == expected_skills
             assert not any(
                 part
                 in {

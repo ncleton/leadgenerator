@@ -199,7 +199,7 @@ supports plugin skills directly.
 ## Optional distribution: Claude Code / Cowork plugin
 
 Import `leadgenerator.plugin` in a client with plugin upload support. It contains
-`.claude-plugin/plugin.json`, the nine canonical skills, `.mcp.json`, the same
+`.claude-plugin/plugin.json`, all canonical skills, `.mcp.json`, the same
 engine and the same UI. Node and uv must be available in the execution environment.
 
 For a local Claude Code development session, point the CLI to the generated

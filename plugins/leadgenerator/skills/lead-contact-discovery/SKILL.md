@@ -29,6 +29,13 @@ never describe connected content as a public search result. Corroborate current
 employment independently and keep LinkedIn-only identities unverified.
 
 For sessionless photo discovery, use `inspect_person_profile_images` on a public
+professional page. For a separately approved local social connector, use
+`$lead-social-research`, check its readiness and require explicit per-call
+approval with `allow_authenticated_session: true`. Never request credentials,
+MFA codes, cookies or exported sessions in chat. This alternative does not
+replace an explicit request to use the current host browser.
+
+Use `inspect_person_profile_images` only on a public
 professional page belonging to the exact person. Do not pass LinkedIn URLs to
 that sessionless scraper. Preserve photo source, observed date, post permalinks
 and dates, ranking rationale and missing data in the Contacts view.

@@ -50,6 +50,11 @@ private mirror outside Git.
 
 ## Select the presentation mode
 
+For separately approved local social connector research, use
+$lead-social-research and require explicit approval on every authenticated call.
+Keep its provenance distinct from host-browser observations. Do not substitute
+a connector when the user specifically asks to use the current host browser.
+
 At the start of every lead session, call `get_lead_interface_mode` before
 any objective resolution, search, browsing, or public research. If the user asks
 in natural language to enable or disable
@@ -148,7 +153,7 @@ website, one leader, or one image. For every selected company:
 6. call `get_linkedin_public_capabilities`, then
    `rank_public_contact_profiles`; rank and render at most the five best contacts
    for the objective, preserving identity evidence, profile rationale, dated
-   dated post summaries with their access mode, and profile status. Each can be
+   post summaries with their access mode, and profile status. Each can be
    publicly enriched and explicitly retained as a contact without a CRM write;
 7. rerender the complete Lead Generator interface with facts, sources, hypotheses,
    gaps, three visuals, leader, news, coverage, top contacts, and angle.
@@ -306,12 +311,14 @@ Read [references/integrations.md](references/integrations.md) for setup details.
    logo and representative-image candidates. Let the UI derive the IGN aerial
    view from verified coordinates; supply a more precise `aerial_focus` only when
    a public source identifies the establishment or parking coordinates.
-5. Invoke `$lead-contact-discovery` to review the publicly accessible company
-   profile population, disclose actual coverage, and rank at most five relevant
-   professional contacts against the active objective. Require evidence linking the current
-   name, role, and exact company; LinkedIn alone is insufficient. Add a public
-   profile image only when it unambiguously belongs to that person and remains
-   reviewable in the Contacts view. Do not enrich an unverified identity.
+5. Invoke `$lead-contact-discovery` to review the available company profile
+   population, disclose actual coverage, and rank at most five relevant
+   professional contacts against the active objective. Invoke
+   `$lead-social-research` as well when the user explicitly approved connected
+   social sources. Require evidence linking the current name, role, and exact
+   company; LinkedIn alone is insufficient. Add a profile image only when it
+   unambiguously belongs to that person and remains reviewable in the Contacts
+   view. Do not enrich an unverified identity.
 6. Invoke `$lead-contact-enrichment` only after the user confirms the exact paid
    lookup and intended provider cascade.
 7. Invoke `$lead-hubspot-sync` only after showing the exact contacts, company

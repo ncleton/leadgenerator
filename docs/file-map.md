@@ -38,3 +38,6 @@ responsabilité visible.
 - pas de framework générique sans usage direct ;
 - pas de profil vendeur ou client dans un skill ou un guide partageable ;
 - pas de fichier généré, export commercial ou environnement Python versionné.
+
+Les profils OpenCLI et LinkedIn MCP sont des états privés gérés hors du dépôt par
+leurs backends respectifs. Le plugin n'en copie jamais les cookies.
