@@ -26,6 +26,14 @@ must require explicit human confirmation at the point of action.
 - `tests/`: tests grouped by the same runtime responsibilities.
 - `docs/`: architecture, file classification, and safety documentation.
 
+## Installing for a user
+
+When asked to install this agent from its GitHub URL or this folder, first read
+`docs/installation.md` and execute that workflow. Prepare the source folder,
+dependencies, private storage binding and correct host registration yourself;
+do not make manual terminal commands or package selection the user's default
+next step. Use the canonical installer, never `codex plugin add` directly.
+
 ## Development workflow
 
 - Use Python 3.13 and `uv`.
@@ -35,7 +43,10 @@ must require explicit human confirmation at the point of action.
 - Keep the French product interface concise and accessible.
 - Never commit secrets, browser profiles, scraped datasets, or files in `outputs/`.
 - Never put seller or client profile values in a skill, guide, fixture, or other
-  shareable artifact. Keep profiles only below `~/.codex/leadgenerator/`.
+  shareable artifact. Keep profiles only in the project's explicitly bound
+  `LEADGENERATOR_HOME`, outside Git (normally the sibling `donnees-privees/`).
+  Never fall back to an unrelated user-global store or import legacy data without
+  an explicit source and confirmation.
 - Do not hand-edit `uv.lock` or plugin cache-buster versions.
 
 Run the canonical validation command before pushing:

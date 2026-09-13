@@ -1,4 +1,4 @@
-"""Opt-in real PostgreSQL regression tests, using a disposable database only.
+"""Shared SQLite and opt-in PostgreSQL projection regression tests.
 
 Run with LEADGENERATOR_TEST_POSTGRES_URL pointing to a local administrative test
 database. Each run creates and drops its own random leadgenerator_test_* database.
@@ -17,8 +17,13 @@ from psycopg import sql
 from psycopg.conninfo import make_conninfo
 
 
-@pytest.fixture
-def memory():
+@pytest.fixture(params=["sqlite", "postgresql"])
+def memory(request, tmp_path, monkeypatch):
+    if request.param == "sqlite":
+        monkeypatch.delenv("LEADGENERATOR_DATABASE_URL", raising=False)
+        monkeypatch.setenv("LEADGENERATOR_HOME", str(tmp_path / "private"))
+        yield CompanyMemory()
+        return
     administrative_url = os.environ.get("LEADGENERATOR_TEST_POSTGRES_URL")
     if not administrative_url:
         pytest.skip(

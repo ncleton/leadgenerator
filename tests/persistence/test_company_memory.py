@@ -1,6 +1,7 @@
 """Tests for stable company identities and PostgreSQL memory integration."""
 
 import json
+import os
 import stat
 
 import pytest
@@ -98,8 +99,10 @@ def test_company_memory_rejects_cross_objective_contamination():
         memory.remember([lead], objective_id="objective-b")
 
 
-def test_visible_export_keeps_current_card_and_complete_history(tmp_path):
-    destination = tmp_path / ".agent-private" / "leadgenerator" / "database"
+def test_visible_export_keeps_current_card_and_complete_history(tmp_path, monkeypatch):
+    home = tmp_path / "private"
+    monkeypatch.setenv("LEADGENERATOR_HOME", str(home))
+    destination = home / "database"
     company = {
         "company_key": "siren:123456789",
         "company_name": "Example Industries",
@@ -135,15 +138,64 @@ def test_visible_export_keeps_current_card_and_complete_history(tmp_path):
     assert index["companies"][0]["snapshot_count"] == 2
     assert current["lead"]["logo_url"].endswith("logo.png")
     assert [json.loads(line)["snapshot_id"] for line in history_lines] == [1, 2]
-    assert stat.S_IMODE(destination.stat().st_mode) == 0o700
-    assert (
-        stat.S_IMODE(
-            (destination / "companies/siren--123456789/current.json").stat().st_mode
+    if os.name != "nt":
+        assert stat.S_IMODE(destination.stat().st_mode) == 0o700
+        assert (
+            stat.S_IMODE(
+                (destination / "companies/siren--123456789/current.json").stat().st_mode
+            )
+            == 0o600
         )
-        == 0o600
-    )
 
 
-def test_visible_export_rejects_shareable_source_directory(tmp_path):
-    with pytest.raises(ValueError, match="agent-private"):
-        write_visible_export(tmp_path / "exports", [], [])
+@pytest.mark.parametrize(
+    "relative", ["code/exports", "unrelated/.agent-private/exports"]
+)
+def test_visible_export_rejects_any_directory_outside_bound_home(
+    tmp_path, monkeypatch, relative
+):
+    monkeypatch.setenv("LEADGENERATOR_HOME", str(tmp_path / "private"))
+    destination = tmp_path / relative
+    with pytest.raises(ValueError, match="dossier privé configuré"):
+        write_visible_export(destination, [], [])
+    assert not destination.exists()
+
+
+@pytest.mark.skipif(
+    os.name == "nt", reason="Symlinks require developer mode on Windows."
+)
+def test_visible_export_allows_alias_only_when_it_resolves_inside_bound_home(
+    tmp_path, monkeypatch
+):
+    home = tmp_path / "private"
+    home.mkdir()
+    monkeypatch.setenv("LEADGENERATOR_HOME", str(home))
+    alias = tmp_path / ".agent-private"
+    alias.symlink_to(home, target_is_directory=True)
+    result = write_visible_export(alias / "exports", [], [])
+    assert result["directory"] == str(home / "exports")
+    assert (home / "exports/index.json").is_file()
+    unrelated = tmp_path / "unrelated"
+    unrelated.mkdir()
+    alias.unlink()
+    alias.symlink_to(unrelated, target_is_directory=True)
+    with pytest.raises(ValueError, match="dossier privé configuré"):
+        write_visible_export(alias / "exports", [], [])
+    assert not (unrelated / "exports").exists()
+
+
+@pytest.mark.skipif(
+    os.name == "nt", reason="Symlinks require developer mode on Windows."
+)
+@pytest.mark.parametrize("redirect", ["companies", "index.json"])
+def test_visible_export_rejects_nested_redirects(tmp_path, monkeypatch, redirect):
+    home = tmp_path / "private"
+    home.mkdir()
+    monkeypatch.setenv("LEADGENERATOR_HOME", str(home))
+    unrelated = tmp_path / "unrelated"
+    unrelated.mkdir()
+    target = unrelated / "index.json" if redirect == "index.json" else unrelated
+    (home / redirect).symlink_to(target, target_is_directory=redirect == "companies")
+    with pytest.raises(ValueError, match="dossier privé configuré"):
+        write_visible_export(home, [], [])
+    assert list(unrelated.iterdir()) == []

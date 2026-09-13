@@ -1,8 +1,9 @@
 # Private extension authoring
 
 Start from a shipped template and keep the extension below the private
-`~/.codex/leadgenerator/extensions/<plugin-id>/` root. A plugin requires a
-`plugin.yaml`, JSON Schema 2020-12 configuration schema, semantic version, SDK
+`extensions/<plugin-id>/` root under the bound `LEADGENERATOR_HOME`. Resolve the
+private directory from `get_lead_interface_mode`, not the plugin cache. A plugin
+requires a `plugin.yaml`, JSON Schema 2020-12 configuration schema, semantic version, SDK
 range, declared capabilities and permissions, health behavior, and conformance
 tests.
 
@@ -10,7 +11,7 @@ Business code uses the `executable` runtime and the line-delimited
 `leadgenerator-plugin-host/v1` protocol. It runs with a sparse environment and
 receives only validated configuration plus declared permission handles. It must
 return versioned observations, evidence, score contributions, or actions; it
-never writes PostgreSQL directly and cannot weaken approvals.
+never writes the company database directly and cannot weaken approvals.
 
 SDK 1.x rejects direct network and filesystem access. Supply external material
 through a native/kernel source capability and pass only the bounded input needed

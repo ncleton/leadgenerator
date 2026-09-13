@@ -32,6 +32,9 @@ outputs/
 **/client-data/
 **/client-profiles/
 **/lead-research-*/
+**/donnees-privees/
+**/*-donnees-privees/
+**/memory.sqlite3*
 
 # Editors and operating systems
 .DS_Store

@@ -77,8 +77,14 @@ def test_generated_packages_are_portable_and_do_not_copy_codex_configuration(tmp
                     "${__dirname}/server/launcher.cjs"
                 ]
                 assert ".mcp.json" not in names
+                assert manifest["user_config"]["LEADGENERATOR_HOME"]["required"] is True
+                assert manifest["server"]["mcp_config"]["env"][
+                    "LEADGENERATOR_HOME"
+                ] == ("${user_config.LEADGENERATOR_HOME}")
                 assert all(
-                    item["sensitive"] for item in manifest["user_config"].values()
+                    item["sensitive"]
+                    for name, item in manifest["user_config"].items()
+                    if name != "LEADGENERATOR_HOME"
                 )
 
 
@@ -105,10 +111,9 @@ def test_mcp_only_clients_can_read_canonical_skills_but_not_arbitrary_files():
     runtime = importlib.import_module("leadgenerator.mcp.server")
     result = runtime.get_lead_workflow()
     assert "hosts.md" in result["available_references"]
-    assert (
-        result["markdown"]
-        == (ROOT / "plugins/leadgenerator/skills/leadgenerator/SKILL.md").read_text()
-    )
+    assert result["markdown"] == (
+        ROOT / "plugins/leadgenerator/skills/leadgenerator/SKILL.md"
+    ).read_text(encoding="utf-8")
     assert "Claude" in runtime.get_lead_workflow(reference="hosts.md")["markdown"]
     for kwargs in ({"skill": "../private"}, {"reference": "../../user-profile.json"}):
         with pytest.raises(ValueError, match="Unknown"):
@@ -172,21 +177,21 @@ def test_project_templates_declare_runtime_and_canonical_workflow(tmp_path):
     ]
     subprocess.run(command, check=True)
     subprocess.run(command, check=True)
-    config = json.loads((tmp_path / ".mcp.json").read_text())["mcpServers"][
-        "leadgenerator"
-    ]
+    config = json.loads((tmp_path / ".mcp.json").read_text(encoding="utf-8"))[
+        "mcpServers"
+    ]["leadgenerator"]
     assert config["type"] == "stdio"
     assert config["args"] == ["${CLAUDE_PROJECT_DIR:-.}/scripts/claude/project.cjs"]
     assert (ROOT / "scripts/claude/project.cjs").is_file()
-    instructions = (tmp_path / "CLAUDE.md").read_text()
+    instructions = (tmp_path / "CLAUDE.md").read_text(encoding="utf-8")
     assert "get_lead_workflow" in instructions
     assert "@AGENTS.md" in instructions
     assert "render_lead_objectives" in instructions
     assert "outputs/claude/build-" not in instructions
-    (tmp_path / "CLAUDE.md").write_text("Custom instructions")
+    (tmp_path / "CLAUDE.md").write_text("Custom instructions", encoding="utf-8")
     result = subprocess.run(command, capture_output=True, check=False)
     assert result.returncode != 0
-    assert (tmp_path / "CLAUDE.md").read_text() == "Custom instructions"
+    assert (tmp_path / "CLAUDE.md").read_text(encoding="utf-8") == "Custom instructions"
 
 
 @pytest.mark.parametrize("advertised", [True, False])

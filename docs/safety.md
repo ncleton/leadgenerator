@@ -63,7 +63,7 @@ même lorsqu'un outil est appelé directement depuis un cache MCP.
 
 Les contributions de panneau sont déclaratives et refusent CSS, JavaScript,
 HTML, sélecteurs et chemins sortant du dossier privé. Un bundle UI autonome est
-isolé dans l'iframe MCP Apps, ne reçoit ni token ni connexion PostgreSQL et doit
+isolé dans l'iframe MCP Apps, ne reçoit ni token ni connexion à la base et doit
 déclarer sa CSP avec des origines HTTPS explicites. Une extension métier utilise
 un sous-processus JSON borné, un environnement minimal et un bac à sable système
 qui bloque le réseau direct, l'écriture hors runtime et la lecture des racines
@@ -86,16 +86,23 @@ profil, ni dans un log, ni dans une sortie de test.
 Les profils de navigateur et sessions sociales restent dans les emplacements
 privés des backends locaux, jamais dans le dépôt ou les sorties de test.
 
-Les identités vendeur, offres et critères clients restent dans
-`~/.codex/leadgenerator/`. La session LinkedIn appartient au navigateur Codex,
-hors de ce stockage et hors du dépôt. Ces données ne sont jamais générées dans un skill ou un guide
-partageable. Les anciens skills locaux contenant un profil sont migrés vers ce
-stockage privé puis supprimés lors de l'installation.
+Les identités vendeur, offres, objectifs et critères clients restent dans le
+`LEADGENERATOR_HOME` explicitement lié au projet, normalement `donnees-privees/`
+à côté de `code/`, hors du dépôt Git. La session LinkedIn appartient au navigateur,
+hors de ce stockage. Ces données ne sont jamais générées dans un skill ou un guide
+partageable. L'installation ne cherche ni n'importe automatiquement les anciens
+profils du compte utilisateur. Une reprise exige une source explicite et une
+confirmation ; elle ne doit pas supprimer les données source.
 
-Les fiches de leads restent dans PostgreSQL local et ne sont jamais exportées
-dans Git, les tests ou les journaux. Une copie lisible peut être générée uniquement
-dans `.agent-private/` ou `~/.codex/leadgenerator/`, deux emplacements privés. Son
-index, ses fiches courantes et ses historiques ne doivent jamais être publiés.
-L'URL de connexion provient uniquement de `LEADGENERATOR_DATABASE_URL` ou du
-socket local par défaut ; elle n'est jamais retournée par les outils MCP. Les
-fixtures utilisent exclusivement des sociétés fictives.
+Les fiches de leads et leur historique restent dans `memory.sqlite3` sous ce même
+dossier privé par défaut, jamais dans Git, les tests ou les journaux. Les exports
+JSON lisibles restent sous le stockage privé, dans `exports/company-memory`.
+L'index, les fiches courantes et les historiques ne doivent jamais être publiés.
+L'exclusion du dépôt ne protège pas une archive complète du dossier principal :
+cette archive est une sauvegarde privée, pas un paquet à distribuer.
+
+PostgreSQL est une option explicite via `LEADGENERATOR_DATABASE_URL`, jamais un
+repli implicite vers une base globale. Son URL de connexion n'est jamais retournée
+par les outils MCP. Une base externe nécessite sa propre sauvegarde et n'est pas
+copiée avec le dossier privé. Les fixtures utilisent exclusivement des sociétés
+fictives. Voir [storage.md](storage.md) pour les limites de portabilité.

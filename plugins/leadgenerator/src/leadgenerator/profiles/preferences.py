@@ -9,7 +9,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-PREFERENCES_HOME = Path.home() / ".codex" / "leadgenerator"
+from leadgenerator.storage import private_path
+
 PREFERENCES_FILENAME = "preferences.json"
 InterfaceMode = Literal["chat_ui", "text_only"]
 
@@ -30,7 +31,11 @@ class LeadGeneratorPreferences(BaseModel):
 
 def preferences_path(profile_home: Path | None = None) -> Path:
     """Return the private preference path for the current installation."""
-    return (profile_home or PREFERENCES_HOME) / PREFERENCES_FILENAME
+    return (
+        profile_home / PREFERENCES_FILENAME
+        if profile_home is not None
+        else private_path(PREFERENCES_FILENAME)
+    )
 
 
 def load_preferences(

@@ -1,6 +1,8 @@
 # Create a private client pack
 
-Client packs live only below `~/.codex/leadgenerator/packs/`. Start from the
+Client packs live only below `packs/` in the explicitly bound `LEADGENERATOR_HOME`,
+outside Git. Read the private directory from `get_lead_interface_mode`; never use
+a plugin-cache path or infer an old global store. Start from the
 synthetic `client-pack.yaml` template and choose explicit providers. Never add a
 client identity, offer, scoring rule, or operational example to the repository.
 

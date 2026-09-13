@@ -7,6 +7,12 @@ All notable changes to Lead Generator are documented here. The project follows
 
 ### Added
 
+- Add one-message Codex/Claude installation with automatic prerequisites,
+  explicit workspace binding, and isolated first-objective verification.
+- Store business data next to the source checkout, with portable SQLite memory
+  by default and cross-platform storage/installer regression coverage.
+- Require explicit legacy-profile import and reconfirmation of copied schedules.
+
 - Add Agent Reach-derived, read-only authenticated connectors for LinkedIn, X,
   Reddit, Facebook, and Instagram, with explicit per-call approval, objective
   scoping, backend diagnostics, provenance, and no social write operations.

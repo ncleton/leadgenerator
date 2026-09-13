@@ -1,5 +1,8 @@
 [CmdletBinding()]
-param()
+param(
+    [ValidateSet("codex", "claude-code", "claude-desktop")]
+    [string]$HostTarget = "codex"
+)
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version 2.0
@@ -98,7 +101,7 @@ function Write-InstalledMcpConfig {
     )
 
     $ConfigPath = Join-Path $PluginRoot ".mcp.json"
-    $Config = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
+    $Config = Get-Content -LiteralPath $ConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json
     $Config.mcpServers.leadgenerator.command = $UvCommand
     $Json = $Config | ConvertTo-Json -Depth 20
     $Utf8WithoutBom = New-Object System.Text.UTF8Encoding($false)
@@ -165,6 +168,28 @@ try {
     & $UvBin --version
     Assert-NativeSuccess "uv ne demarre pas"
 
+    if ($HostTarget -ne "codex") {
+        Start-InstallStep "Installation du runtime Claude"
+        & $UvBin sync --project plugins/leadgenerator --frozen --python 3.13
+        Assert-NativeSuccess "L'installation Python a echoue"
+        $WorkspaceOutput = (& $UvBin run --project plugins/leadgenerator --frozen python `
+            scripts/configure_workspace.py --code-root $RootDir | Out-String).Trim()
+        Assert-NativeSuccess "La preparation du dossier prive a echoue"
+        $env:LEADGENERATOR_HOME = ($WorkspaceOutput | ConvertFrom-Json).private_directory
+        $env:LEADGENERATOR_DATABASE_URL = ""
+        $env:LEADGENERATOR_HOST = "claude"
+        & $UvBin run --project plugins/leadgenerator --frozen playwright install chromium
+        Assert-NativeSuccess "L'installation de Chromium a echoue"
+        & $UvBin run --project plugins/leadgenerator --frozen python scripts/verify_workspace.py
+        Assert-NativeSuccess "La verification du premier objectif a echoue"
+        & $UvBin run --project plugins/leadgenerator --frozen python scripts/install_claude.py `
+            --code-root $RootDir --uv-command $UvBin --host $HostTarget
+        Assert-NativeSuccess "La configuration de Claude a echoue"
+        Write-Host "Installation terminee. Quittez completement Claude puis relancez-le dans ce projet."
+        Write-Host "Le premier usage d'un dossier neuf demande de creer un objectif."
+        return
+    }
+
     Start-InstallStep "Verification de Codex"
     $CodexBin = Find-Executable -Name "codex" -Candidates $CodexCandidates
     $CodexVersion = $null
@@ -216,28 +241,31 @@ try {
     & $UvBin sync --project plugins/leadgenerator --frozen --python 3.13
     Assert-NativeSuccess "L'installation Python a echoue"
 
-    Start-InstallStep "Migration sure des profils locaux"
-    & $UvBin run --project plugins/leadgenerator --frozen leadgenerator-migrate-profiles
-    Assert-NativeSuccess "La migration des profils prives a echoue"
+    Start-InstallStep "Preparation du dossier prive de cette installation"
+    $WorkspaceOutput = (& $UvBin run --project plugins/leadgenerator --frozen python `
+        scripts/configure_workspace.py --code-root $RootDir | Out-String).Trim()
+    Assert-NativeSuccess "La preparation du dossier prive a echoue"
+    $env:LEADGENERATOR_HOME = ($WorkspaceOutput | ConvertFrom-Json).private_directory
+    $env:LEADGENERATOR_DATABASE_URL = ""
+    Write-Host "Donnees privees : $env:LEADGENERATOR_HOME"
+    Write-Host "Aucun ancien objectif ou profil global n'est importe automatiquement."
+    & $UvBin run --project plugins/leadgenerator --frozen python `
+        scripts/configure_workspace.py --code-root $RootDir
+    Assert-NativeSuccess "La verification du dossier prive a echoue"
 
     Start-InstallStep "Installation du navigateur Chromium"
     & $UvBin run --project plugins/leadgenerator --frozen playwright install chromium
     Assert-NativeSuccess "L'installation de Chromium a echoue"
 
-    Start-InstallStep "Connexion a ChatGPT"
-    & $CodexBin login status *> $null
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "Une connexion ChatGPT est requise. Un code de connexion va etre affiche."
-        & $CodexBin login --device-auth
-        Assert-NativeSuccess "La connexion ChatGPT a echoue"
-    }
+    # Local MCP installation performs no model call. Authentication belongs to
+    # the host application and must not interrupt dependency installation.
 
     Start-InstallStep "Installation du plugin Codex"
     $MarketplaceName = "leadgenerator-local"
     $PluginName = "leadgenerator@$MarketplaceName"
     $PluginManifest = Get-Content -LiteralPath (
         Join-Path $RootDir "plugins/leadgenerator/.codex-plugin/plugin.json"
-    ) -Raw | ConvertFrom-Json
+    ) -Raw -Encoding UTF8 | ConvertFrom-Json
     $PluginVersion = $PluginManifest.version
     $CodexHomeDir = if ($env:CODEX_HOME) { $env:CODEX_HOME } else { Join-Path $HOME ".codex" }
     $CacheRoot = Join-Path $CodexHomeDir "plugins/cache/$MarketplaceName/leadgenerator"
@@ -268,7 +296,7 @@ try {
         if (Test-Path -LiteralPath $SkillPath -PathType Container) {
             if (-not $LegacyBackup) {
                 $Timestamp = [DateTime]::UtcNow.ToString("yyyyMMddTHHmmssZ")
-                $LegacyBackup = Join-Path $HOME ".codex/leadgenerator/legacy-skill-backups/$Timestamp"
+                $LegacyBackup = Join-Path $env:LEADGENERATOR_HOME "legacy-skill-backups/$Timestamp"
                 New-Item -ItemType Directory -Path $LegacyBackup -Force | Out-Null
             }
             Move-Item -LiteralPath $SkillPath -Destination (Join-Path $LegacyBackup $Skill)
@@ -278,12 +306,9 @@ try {
         Write-Host "Anciens skills generiques archives dans $LegacyBackup"
     }
 
-    $MarketplaceList = (& $CodexBin plugin marketplace list | Out-String)
-    Assert-NativeSuccess "La lecture des marketplaces Codex a echoue"
-    if (-not $MarketplaceList.Contains($RootDir)) {
-        & $CodexBin plugin marketplace add $RootDir
-        Assert-NativeSuccess "L'ajout du marketplace Lead Generator a echoue"
-    }
+    & $UvBin run --project plugins/leadgenerator --frozen python `
+        scripts/register_codex_marketplace.py --code-root $RootDir --codex-command $CodexBin
+    Assert-NativeSuccess "La liaison du marketplace au dossier source a echoue"
     & $CodexBin plugin add $PluginName
     Assert-NativeSuccess "L'installation du plugin Lead Generator a echoue"
 
@@ -306,6 +331,10 @@ try {
     # the absolute executable path in the installed MCP config to remove that
     # Windows-only startup dependency.
     Write-InstalledMcpConfig -PluginRoot $InstalledPluginRoot -UvCommand $UvBin
+    & $UvBin run --project $InstalledPluginRoot --frozen python `
+        (Join-Path $RootDir "scripts/configure_workspace.py") `
+        --code-root $RootDir --plugin-root $InstalledPluginRoot --uv-command $UvBin
+    Assert-NativeSuccess "La liaison du plugin a son dossier prive a echoue"
 
     & $UvBin run --project $InstalledPluginRoot --frozen python -c "import leadgenerator.mcp.server"
     Assert-NativeSuccess "Le serveur MCP Lead Generator installe ne demarre pas"

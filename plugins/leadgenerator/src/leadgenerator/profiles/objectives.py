@@ -1,8 +1,7 @@
 """Private, persistent objective agents and their conversation routing.
 
-The data in this module is user-owned context.  It intentionally lives below
-``~/.codex/leadgenerator/objectives`` and is never compiled into the shareable
-plugin or one of its skills.
+The data in this module is user-owned context. It lives in the current project's
+private data directory and is never compiled into the shareable plugin or skills.
 """
 
 from __future__ import annotations
@@ -20,13 +19,14 @@ import zipfile
 import zlib
 from datetime import UTC, datetime
 from html.parser import HTMLParser
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Literal
 from xml.etree import ElementTree
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-OBJECTIVES_HOME = Path.home() / ".codex" / "leadgenerator" / "objectives"
+from leadgenerator.storage import is_windows_device_name, private_path
+
 STATE_FILENAME = "state.json"
 MAX_ATTACHMENT_BYTES = 50 * 1024 * 1024
 MAX_EXTRACTED_CHARACTERS = 2_000_000
@@ -55,6 +55,10 @@ def validate_identifier(value: str, *, label: str = "identifier") -> str:
         )
     if len(value) > 64:
         raise ValueError(f"Invalid {label}: maximum length is 64 characters.")
+    if is_windows_device_name(value):
+        raise ValueError(
+            f"Invalid {label}: Windows-reserved device names are not allowed."
+        )
     return value
 
 
@@ -65,6 +69,8 @@ def objective_slug(value: str) -> str:
     )
     slug = re.sub(r"[^a-z0-9]+", "-", ascii_value.lower()).strip("-")
     slug = slug[:56].rstrip("-")
+    if is_windows_device_name(slug):
+        slug = f"objective-{slug}"
     return validate_identifier(slug or "objective", label="objective_id")
 
 
@@ -190,6 +196,26 @@ class ObjectiveAttachment(StrictModel):
     def _valid_ids(cls, value: str) -> str:
         return validate_identifier(value)
 
+    @field_validator("stored_path", "extracted_text_path")
+    @classmethod
+    def _portable_relative_path(cls, value: str | None) -> str | None:
+        """Read legacy Windows separators without accepting traversal or drives."""
+        if value is None:
+            return None
+        normalized = value.replace("\\", "/")
+        path = PurePosixPath(normalized)
+        if (
+            not path.parts
+            or path.is_absolute()
+            or PureWindowsPath(normalized).drive
+            or ".." in path.parts
+            or ":" in normalized
+            or "\x00" in normalized
+            or any(is_windows_device_name(part) for part in path.parts)
+        ):
+            raise ValueError("A safe relative attachment path is required.")
+        return path.as_posix()
+
 
 class ObjectiveNote(StrictModel):
     """A durable, explicitly untrusted note attached to one objective."""
@@ -242,8 +268,8 @@ RouteStatus = Literal[
 ]
 
 OBJECTIVE_SETUP_PROMPT = (
-    "Que souhaitez-vous vendre à ces entreprises ? Une phrase suffit, par "
-    "exemple : « Je vends des bornes de recharge. »"
+    "Que souhaitez-vous vendre à ces entreprises ? Une phrase suffit pour "
+    "décrire votre produit ou service."
 )
 OBJECTIVE_CONVERSATION_HINT = (
     " N'hésitez pas à renommer cette conversation avec le nom de l'objectif "
@@ -480,6 +506,8 @@ def _atomic_json(path: Path, model: BaseModel) -> Path:
 def _safe_filename(name: str) -> str:
     cleaned = unicodedata.normalize("NFKC", Path(name).name)
     cleaned = re.sub(r"[^A-Za-z0-9._-]+", "-", cleaned).strip(".-")
+    if is_windows_device_name(cleaned):
+        cleaned = f"document-{cleaned}"
     return cleaned[:120] or "document"
 
 
@@ -613,8 +641,8 @@ def extract_document_text(source: Path, mime_type: str | None = None) -> str:
 class ObjectiveStore:
     """Filesystem-backed CRUD and routing for private objective agents."""
 
-    def __init__(self, home: Path = OBJECTIVES_HOME) -> None:
-        self.home = Path(home)
+    def __init__(self, home: Path | None = None) -> None:
+        self.home = Path(home) if home is not None else private_path("objectives")
 
     def _objective_dir(self, objective_id: str) -> Path:
         return self.home / validate_identifier(objective_id, label="objective_id")
@@ -1196,9 +1224,11 @@ class ObjectiveStore:
             mime_type=resolved_mime,
             byte_size=size,
             sha256=digest,
-            stored_path=str(stored_path.relative_to(self._objective_dir(objective_id))),
+            stored_path=stored_path.relative_to(
+                self._objective_dir(objective_id)
+            ).as_posix(),
             extracted_text_path=(
-                str(extracted_path.relative_to(self._objective_dir(objective_id)))
+                extracted_path.relative_to(self._objective_dir(objective_id)).as_posix()
                 if extracted_path
                 else None
             ),
@@ -1474,7 +1504,6 @@ def route_objective(
 __all__ = [
     "DocumentProvenance",
     "MAX_ATTACHMENT_BYTES",
-    "OBJECTIVES_HOME",
     "Objective",
     "ObjectiveAgent",
     "ObjectiveAttachment",

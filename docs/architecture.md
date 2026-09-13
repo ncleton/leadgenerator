@@ -15,7 +15,7 @@ Skill Lead Generator ──► outils MCP ──► modules Python spécialisés
         │                 │
         │                 ├── objectifs + agents 1:1
         │                 ├── routage + contexte documentaire
-        │                 ├── mémoire PostgreSQL des entreprises
+        │                 ├── mémoire privée des entreprises (SQLite par défaut)
         │                 ├── recherche publique
         │                 ├── réseaux sociaux connectés en lecture seule
         │                 ├── profils locaux
@@ -60,10 +60,14 @@ lancer une recherche d'entreprises.
 
 ## État et données
 
-Le profil vendeur, les profils d'offre historiques, les objectifs, leurs agents,
-leurs notes et documents, et la préférence de présentation sont
-conservés exclusivement dans `~/.codex/leadgenerator/`, avec des permissions locales
-restrictives. Les pièces jointes sont copiées, hachées SHA-256, rattachées à un
+Le profil vendeur, les profils d'offre, les objectifs, leurs agents, leurs notes
+et documents, les préférences et la composition privée sont conservés dans le
+`LEADGENERATOR_HOME` explicitement lié à l'installation, hors Git et hors du cache
+du plugin. L'organisation recommandée est un dossier principal contenant `code/`
+et `donnees-privees/`. Le serveur ne reprend jamais implicitement un ancien
+stockage global ; un import exige une source et une confirmation explicites.
+Voir [storage.md](storage.md). Les permissions locales sont restrictives.
+Les pièces jointes sont copiées, hachées SHA-256, rattachées à un
 seul objectif et leur texte est explicitement marqué comme non fiable.
 `preferences.json` choisit `chat_ui` ou `text_only`. Dans ce dernier
 mode, le serveur masque les outils et ressources MCP Apps et bloque aussi leur
@@ -74,19 +78,22 @@ identifiants Enrow, FullEnrich et HubSpot proviennent uniquement de variables
 d'environnement. Le dépôt ignore les profils, exports, environnements Python,
 caches et rapports de couverture.
 
-Les fiches d'entreprise et de contact sont conservées hors du dépôt dans une
-base PostgreSQL locale. La table `leadgenerator_private.companies` utilise le SIREN
+Les fiches d'entreprise et de contact sont conservées par défaut dans
+`LEADGENERATOR_HOME/memory.sqlite3`, avec leur historique. PostgreSQL est disponible
+uniquement sur configuration explicite de `LEADGENERATOR_DATABASE_URL` ; cette base
+ne fait alors pas partie du dossier portable. Les deux backends utilisent le SIREN
 comme identité prioritaire, puis le domaine officiel et enfin une empreinte de
-secours. Elle conserve la fiche `LeadViewItem` complète en JSONB, les objectifs
+secours. La mémoire conserve la fiche `LeadViewItem` complète, les objectifs
 associés, les dates de première et dernière observation, le nombre de recherches
 et le dernier contexte de recherche. Une nouvelle recherche inscrit tous les
 résultats mais ne présente par défaut que les identités inconnues. Les rendus de
 l'explorateur et du workspace actualisent la fiche avec le site officiel, les
 faits et sources, les visuels, contacts, actualités, signaux et enrichissements.
-La table `leadgenerator_private.company_snapshots` ajoute une version immuable à
-chaque écriture. L'outil `export_company_memory` matérialise une vue lisible sous
-`.agent-private/leadgenerator/database` avec un index, la fiche courante et tout
-l'historique JSONL. Cette vue est un miroir privé ; PostgreSQL reste autoritaire.
+Une version immuable est ajoutée à chaque écriture. L'outil
+`export_company_memory` matérialise une vue lisible sous
+`LEADGENERATOR_HOME/exports/company-memory` avec un index, la fiche courante et tout
+l'historique JSONL. Cette vue est un miroir privé ; la base configurée reste
+autoritaire.
 
 Les outils de recherche et les rendus persistants exigent un `objective_id`
 correspondant à un objectif actif. La même valeur est propagée dans le payload du

@@ -1,4 +1,4 @@
-"""PostgreSQL-backed private memory for researched companies.
+"""Portable private memory, with optional explicit PostgreSQL storage.
 
 The database is runtime state only. No company record is written inside the
 shareable repository. A SIREN is the preferred durable identity; a verified
@@ -13,6 +13,7 @@ import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from typing import Any, Callable, Iterable
 from urllib.parse import urlparse
 
@@ -46,7 +47,6 @@ OBSERVATION_TABLE = f"{SCHEMA}.observations"
 SCORE_TABLE = f"{SCHEMA}.score_contributions"
 OUTCOME_TABLE = f"{SCHEMA}.prospect_outcomes"
 PLUGIN_STATE_TABLE = f"{SCHEMA}.plugin_state"
-PRIVATE_HOME = Path.home() / ".codex" / "leadgenerator"
 
 
 @dataclass(frozen=True, slots=True)
@@ -122,17 +122,35 @@ def _workspace_evidence_ids(
 
 
 def _private_export_directory(value: str | Path) -> Path:
-    """Resolve a writable export directory that cannot enter shared source."""
+    """Keep each resolved export target inside the currently bound private home."""
+    from leadgenerator.storage import private_home
+
     destination = Path(value).expanduser().absolute()
     resolved = destination.resolve(strict=False)
-    private_home = PRIVATE_HOME.resolve(strict=False)
-    if ".agent-private" not in destination.parts and not resolved.is_relative_to(
-        private_home
-    ):
-        raise ValueError(
-            "L'export doit rester dans .agent-private/ ou ~/.codex/leadgenerator/."
-        )
-    return destination
+    if not resolved.is_relative_to(private_home().resolve(strict=False)):
+        raise ValueError("L'export doit rester dans le dossier privé configuré.")
+    return resolved
+
+
+def _write_private_export_file(path: Path, content: str) -> None:
+    """Replace one checked file using an exclusively created private temporary."""
+    destination = _private_export_directory(path)
+    temporary = None
+    try:
+        with NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            prefix=".export-",
+            suffix=".tmp",
+            dir=destination.parent,
+            delete=False,
+        ) as stream:
+            temporary = Path(stream.name)
+            stream.write(content)
+        temporary.replace(destination)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
 
 
 def _export_folder_name(company_key: str) -> str:
@@ -144,13 +162,13 @@ def write_visible_export(
     destination: str | Path,
     companies: list[dict[str, Any]],
     snapshots: list[dict[str, Any]],
+    *,
+    authoritative_backend: str = "postgresql",
 ) -> dict[str, Any]:
-    """Write a private, human-readable mirror of PostgreSQL memory."""
+    """Write a private, human-readable mirror of authoritative memory."""
     root = _private_export_directory(destination)
-    companies_root = root / "companies"
+    companies_root = _private_export_directory(root / "companies")
     companies_root.mkdir(parents=True, exist_ok=True, mode=0o700)
-    if root.parent.name == "leadgenerator":
-        root.parent.chmod(0o700)
     root.chmod(0o700)
     companies_root.chmod(0o700)
 
@@ -162,7 +180,7 @@ def write_visible_export(
     for company in companies:
         company_key = str(company["company_key"])
         folder_name = _export_folder_name(company_key)
-        company_root = companies_root / folder_name
+        company_root = _private_export_directory(companies_root / folder_name)
         company_root.mkdir(parents=True, exist_ok=True, mode=0o700)
         company_root.chmod(0o700)
         current_path = company_root / "current.json"
@@ -178,10 +196,7 @@ def write_visible_export(
             (current_path, current_text + "\n"),
             (history_path, history_text),
         ):
-            temporary = path.with_name(f".{path.name}.tmp")
-            temporary.write_text(content, encoding="utf-8")
-            temporary.chmod(0o600)
-            temporary.replace(path)
+            _write_private_export_file(path, content)
         index_rows.append(
             {
                 "company_key": company_key,
@@ -194,19 +209,16 @@ def write_visible_export(
 
     index = {
         "format": "leadgenerator-company-memory-v1",
-        "authoritative_backend": "postgresql",
+        "authoritative_backend": authoritative_backend,
         "company_count": len(companies),
         "snapshot_count": len(snapshots),
         "companies": index_rows,
     }
     index_path = root / "index.json"
-    temporary = root / ".index.json.tmp"
-    temporary.write_text(
+    _write_private_export_file(
+        index_path,
         json.dumps(index, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
     )
-    temporary.chmod(0o600)
-    temporary.replace(index_path)
     return {
         "directory": str(root),
         "index_file": str(index_path),
@@ -215,8 +227,10 @@ def write_visible_export(
     }
 
 
-class CompanyMemory:
+class PostgreSQLCompanyMemory:
     """Persist and retrieve private company cards in a local PostgreSQL database."""
+
+    backend = "postgresql"
 
     def __init__(
         self,
@@ -952,8 +966,7 @@ class CompanyMemory:
                 cursor.execute(f"SELECT COUNT(*) FROM {TABLE}")
                 stored_companies = int(cursor.fetchone()[0])
                 cursor.execute(
-                    f"SELECT COUNT(*) FROM {TABLE} "
-                    "WHERE cardinality(objective_ids) > 0"
+                    f"SELECT COUNT(*) FROM {TABLE} WHERE cardinality(objective_ids) > 0"
                 )
                 objective_scoped_companies = int(cursor.fetchone()[0])
                 cursor.execute(f"SELECT COUNT(*) FROM {SNAPSHOT_TABLE}")
@@ -996,3 +1009,99 @@ def safe_company_key(value: str) -> str:
     ):
         raise ValueError("Identifiant d'entreprise mémorisée invalide.")
     return stripped
+
+
+class CompanyMemory:
+    """Use one portable local database unless PostgreSQL is explicitly selected.
+
+    Constructor injection retains the PostgreSQL testing/embedding contract. No
+    default PostgreSQL database or previous global store is probed or imported.
+    """
+
+    def __init__(
+        self,
+        database_url: str | None = None,
+        *,
+        connect: Callable[..., Any] | None = None,
+    ) -> None:
+        configured_url = database_url or os.environ.get(DATABASE_URL_ENV)
+        if configured_url or connect is not None:
+            self._backend = PostgreSQLCompanyMemory(
+                configured_url, connect=connect or psycopg.connect
+            )
+        else:
+            from leadgenerator.persistence.sqlite_memory import SQLiteCompanyMemory
+            from leadgenerator.storage import private_path
+
+            self._backend = SQLiteCompanyMemory(private_path("memory.sqlite3"))
+
+    @property
+    def backend(self) -> str:
+        """Identify the authoritative backend without exposing credentials."""
+        return self._backend.backend
+
+    def record_observation_batch(
+        self,
+        *,
+        evidence: Iterable[Evidence] = (),
+        observations: Iterable[Observation] = (),
+        scores: Iterable[tuple[str, str, ScoreContribution]] = (),
+    ) -> dict[str, int]:
+        return self._backend.record_observation_batch(
+            evidence=evidence, observations=observations, scores=scores
+        )
+
+    def record_outcome(self, outcome: ProspectOutcome) -> None:
+        self._backend.record_outcome(outcome)
+
+    def workspace_records(
+        self, subject_id: str, *, objective_id: str
+    ) -> dict[str, list[dict[str, Any]]]:
+        return self._backend.workspace_records(subject_id, objective_id=objective_id)
+
+    def record_plugin_state(
+        self,
+        plugin_id: str,
+        version: str,
+        state: str,
+        migration_version: str | None = None,
+    ) -> None:
+        self._backend.record_plugin_state(plugin_id, version, state, migration_version)
+
+    def remember(
+        self,
+        leads: Iterable[LeadViewItem],
+        *,
+        objective_id: str,
+        search_context: dict[str, Any] | None = None,
+        mark_as_search: bool = True,
+        capture_kind: str | None = None,
+    ) -> CompanyMemoryResult:
+        return self._backend.remember(
+            leads,
+            objective_id=objective_id,
+            search_context=search_context,
+            mark_as_search=mark_as_search,
+            capture_kind=capture_kind,
+        )
+
+    def count(self) -> int:
+        return self._backend.count()
+
+    def find(
+        self,
+        *,
+        query: str = "",
+        objective_id: str | None = None,
+        limit: int = 50,
+    ) -> list[dict[str, Any]]:
+        return self._backend.find(query=query, objective_id=objective_id, limit=limit)
+
+    def history(self, company_key: str, *, limit: int = 50) -> list[dict[str, Any]]:
+        return self._backend.history(company_key, limit=limit)
+
+    def export_visible(self, destination: str | Path) -> dict[str, Any]:
+        return self._backend.export_visible(destination)
+
+    def status(self) -> dict[str, Any]:
+        return self._backend.status()

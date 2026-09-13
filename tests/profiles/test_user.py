@@ -1,5 +1,7 @@
 """Tests for local, user-specific Lead Generator defaults."""
 
+import json
+import os
 from pathlib import Path
 
 import pytest
@@ -56,10 +58,10 @@ def test_website_analysis_is_sourced_from_the_saved_seller_domain(tmp_path: Path
 
     analyzed = record_website_analysis(
         profile,
-        offer_summary="L'entreprise présente une solution de recharge B2B.",
+        offer_summary="L'entreprise présente un service de traduction B2B.",
         source_urls=[
             "https://example.com/",
-            "https://www.example.com/solutions/recharge",
+            "https://www.example.com/services/traduction",
         ],
     )
     save_user_profile(analyzed, tmp_path)
@@ -86,7 +88,11 @@ def test_text_only_mode_is_private_persistent_and_reversible(tmp_path: Path):
     assert path == preferences_path(tmp_path)
     assert disabled.interface_enabled is False
     assert load_preferences(tmp_path).interface_mode == "text_only"
-    assert path.stat().st_mode & 0o777 == 0o600
+    assert path.is_file() and not path.is_symlink()
+    assert json.loads(path.read_text(encoding="utf-8")) == disabled.model_dump()
+    # Windows access is controlled by directory ACLs, not POSIX stat mode bits.
+    if os.name == "posix":
+        assert path.stat().st_mode & 0o777 == 0o600
 
     enabled, _ = set_interface_mode("chat_ui", tmp_path)
 
@@ -102,7 +108,10 @@ def test_desired_lead_count_is_private_persistent_and_bounded(tmp_path: Path):
     assert updated.desired_lead_count == 17
     assert updated.interface_mode == "chat_ui"
     assert load_preferences(tmp_path).desired_lead_count == 17
-    assert path.stat().st_mode & 0o777 == 0o600
+    assert path.is_file() and not path.is_symlink()
+    assert json.loads(path.read_text(encoding="utf-8")) == updated.model_dump()
+    if os.name == "posix":
+        assert path.stat().st_mode & 0o777 == 0o600
 
     with pytest.raises(ValueError, match="less than or equal to 25"):
         set_desired_lead_count(26, tmp_path)

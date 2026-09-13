@@ -1,6 +1,7 @@
 """Prevent public schemas, manifests, docs, and synthetic templates from drifting."""
 
 import json
+import sys
 from pathlib import Path
 
 import jsonschema
@@ -35,6 +36,11 @@ def test_plugin_templates_have_valid_manifest_shapes(tmp_path):
         "ui-shell-plugin.yaml",
     ):
         values = yaml.safe_load((TEMPLATES / template).read_text())
+        if template == "executable-plugin.yaml":
+            # Instantiate the documented absolute-path placeholder for this OS;
+            # a POSIX /absolute/... example is not drive-absolute on Windows.
+            assert values["spec"]["command"] == ["/absolute/private/path/plugin-host"]
+            values["spec"]["command"] = [str(Path(sys.executable).resolve())]
         root = tmp_path / template
         root.mkdir()
         (root / "config.schema.json").write_text(

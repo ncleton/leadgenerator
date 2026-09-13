@@ -2,6 +2,8 @@
 
 import asyncio
 import json
+import os
+from pathlib import Path
 from types import SimpleNamespace
 
 import leadgenerator.mcp.server as server_module
@@ -77,7 +79,7 @@ from leadgenerator.ui.workspace import (
 )
 from mcp.server.mcpserver.exceptions import ResourceError, ToolError
 from mcp.types import CallToolResult
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import expect, sync_playwright
 
 TEST_OBJECTIVE_ID = "test-objective"
 
@@ -655,7 +657,8 @@ def test_resolver_blocks_research_and_returns_the_objective_example(
 
     assert result["research_authorized"] is False
     assert result["next_action"] == "ask_clarification"
-    assert "bornes de recharge" in result["decision"]["clarification_prompt"]
+    assert "Que souhaitez-vous vendre" in result["decision"]["clarification_prompt"]
+    assert "bornes de recharge" not in result["decision"]["clarification_prompt"]
 
 
 def test_resolver_turns_a_plain_offer_answer_into_a_new_objective_action(
@@ -671,7 +674,7 @@ def test_resolver_turns_a_plain_offer_answer_into_a_new_objective_action(
     )
     monkeypatch.setattr("leadgenerator.mcp.server.ObjectiveStore", lambda: store)
 
-    result = resolve_lead_objective("Je veux vendre des bornes de recharge")
+    result = resolve_lead_objective("Je veux vendre une nouvelle offre")
 
     assert result["research_authorized"] is False
     assert result["next_action"] == "create_objective"
@@ -1289,6 +1292,7 @@ def test_explorer_offers_satellite_imagery_separate_from_the_plan():
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=True)
         page = browser.new_page(viewport={"width": 900, "height": 820})
+        page.route("https://**/*", lambda route: route.abort())
         page.set_content(LEAD_EXPLORER_HTML, wait_until="domcontentloaded")
         page.evaluate(
             """payload => window.dispatchEvent(new CustomEvent("openai:set_globals", {
@@ -1302,13 +1306,15 @@ def test_explorer_offers_satellite_imagery_separate_from_the_plan():
         assert "LAYER=GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2" in plan_url
         page.get_by_role("button", name="Satellite").click()
 
-        assert page.get_by_label("Vue satellite des bâtiments et parkings").is_visible()
-        assert page.get_by_text("Satellite · Photos aériennes IGN").is_visible()
-        assert (
-            page.locator("#street-map")
-            .get_by_role("button", name="Voir Lille Example")
-            .is_visible()
-        )
+        expect(
+            page.get_by_label("Vue satellite des bâtiments et parkings")
+        ).to_be_visible()
+        expect(page.get_by_text("Satellite · Photos aériennes IGN")).to_be_visible()
+        # Switching tabs exposes the container immediately, but marker rendering
+        # runs in a later task. Wait for the observable result, not a fixed delay.
+        expect(
+            page.locator("#street-map").get_by_role("button", name="Voir Lille Example")
+        ).to_be_visible()
         tile_url = page.locator("#street-map .tile").first.get_attribute("src")
         assert tile_url is not None
         assert tile_url.startswith("https://data.geopf.fr/wmts?")
@@ -1848,6 +1854,9 @@ def test_company_memory_boundary_tools_preserve_their_public_contract(tmp_path):
     observations = get_lead_observations("siren:123456789", "objective-test")
     export = export_company_memory(str(tmp_path / ".agent-private" / "export"))
 
+    assert status.pop("private_directory") == str(
+        Path(os.environ["LEADGENERATOR_HOME"]).resolve()
+    )
     assert status == {
         "backend": "postgresql",
         "connected": True,

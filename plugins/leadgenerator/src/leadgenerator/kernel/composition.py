@@ -29,18 +29,12 @@ from leadgenerator.kernel.plugins import (
     file_sha256,
 )
 from leadgenerator.native.defaults import DEFAULT_PLUGIN_IDS, DEFAULT_SHELL_ID
+from leadgenerator.storage import private_home
 
 LEADGENERATOR_KERNEL_VERSION = "1.0.0"
 LEADGENERATOR_SDK_VERSION = "1.0.0"
 PACKAGE_ROOT = Path(__file__).resolve().parents[1]
 NATIVE_CATALOG_ROOT = PACKAGE_ROOT / "native" / "catalog"
-DEFAULT_PRIVATE_HOME = Path.home() / ".codex" / "leadgenerator"
-
-
-def private_home() -> Path:
-    """Return the durable user-owned root, with a test-friendly override."""
-    value = os.environ.get("LEADGENERATOR_HOME")
-    return Path(value).expanduser() if value else DEFAULT_PRIVATE_HOME
 
 
 class StrictModel(BaseModel):
@@ -430,27 +424,35 @@ class LeadGeneratorRuntime:
         return report
 
 
-_runtime: LeadGeneratorRuntime | None = None
+_runtimes: dict[Path, LeadGeneratorRuntime] = {}
 _runtime_lock = threading.RLock()
 
 
 def get_runtime(
     *, refresh: bool = False, home: Path | None = None
 ) -> LeadGeneratorRuntime:
-    """Return the startup composition; refresh is reserved for tests and restart."""
-    global _runtime
+    """Reuse one composition per private root without stopping another owner.
+
+    A server may retain its startup composition while another caller selects a
+    different project. Only an explicit refresh replaces the selected project's
+    runtime; orderly process shutdown closes all cached runtimes.
+    """
+    home = (home if home is not None else private_home()).resolve()
     with _runtime_lock:
-        if refresh or _runtime is None or (home is not None and _runtime.home != home):
-            if _runtime is not None:
-                _runtime.manager.stop_all()
-            _runtime = LeadGeneratorRuntime(home=home)
-        return _runtime
+        if refresh:
+            previous = _runtimes.pop(home, None)
+            if previous is not None:
+                previous.manager.stop_all()
+        runtime = _runtimes.get(home)
+        if runtime is None:
+            runtime = LeadGeneratorRuntime(home=home)
+            _runtimes[home] = runtime
+        return runtime
 
 
 def reset_runtime() -> None:
-    """Dispose the cached runtime in tests or an orderly server shutdown."""
-    global _runtime
+    """Dispose every cached runtime in tests or an orderly process shutdown."""
     with _runtime_lock:
-        if _runtime is not None:
-            _runtime.manager.stop_all()
-        _runtime = None
+        for runtime in _runtimes.values():
+            runtime.manager.stop_all()
+        _runtimes.clear()

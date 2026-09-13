@@ -19,5 +19,5 @@ def host_contract() -> dict[str, object]:
         "browser": "Discover the current host's browser tools. In Claude prefer Claude in Chrome for an existing signed-in account; the Code tab's built-in Browser (Claude Browser / Claude Preview tools) can also open LinkedIn for a direct user login in its separate profile. Execute the navigation and inspect the visible session, not just a handoff. Never invoke another host's tools or reuse its authentication implicitly.",
         "schedule_editable": host_name() == "codex",
         "schedule_owner": "codex",
-        "private_storage": "Existing local storage under ~/.codex/leadgenerator is shared only by processes running as the same OS user. No profiles or secrets are bundled.",
+        "private_storage": "Business data belongs only to the explicitly bound workspace private directory, outside the code repository. No global legacy profiles are imported. Credentials and browser sessions remain host-owned.",
     }

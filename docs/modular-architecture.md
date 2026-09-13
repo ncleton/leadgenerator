@@ -27,8 +27,9 @@ in the product at first but each has an independent manifest and version.
 ## Composition
 
 The effective order is product defaults, sector pack, client pack, then active
-objective. The first release stores one compiled private client pack in
-`~/.codex/leadgenerator/packs/active.yaml`; pack inheritance fields are retained
+objective. The compiled private client pack lives in
+`LEADGENERATOR_HOME/packs/active.yaml`, under the project's explicit private
+storage binding; pack inheritance fields are retained
 for future named sector layers. Theme and labels use the most specific value.
 Tabs and panels merge by stable identifier. Exclusive capabilities such as
 `ui.shell` never use last-writer-wins: exactly one configured provider must start.

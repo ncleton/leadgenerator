@@ -53,7 +53,8 @@ skill root for per-objective automation management.
 ## Documents and notes
 
 Every uploaded file or durable note is attached to exactly one objective. Store it
-only below `~/.codex/leadgenerator/objectives/`, with its source name, MIME type,
+only below `objectives/` within the explicitly bound private directory returned
+by `get_lead_interface_mode`, with its source name, MIME type,
 SHA-256 hash, added date, and untrusted-content marker. Inline only bounded text in
 the agent context; retain the original private file for later inspection.
 

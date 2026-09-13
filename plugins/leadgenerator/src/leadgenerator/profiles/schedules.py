@@ -6,6 +6,9 @@ execution; local preferences become synchronized only after its successful call.
 
 from __future__ import annotations
 
+import hashlib
+import json
+import socket
 from typing import Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -60,6 +63,8 @@ class ObjectiveSchedule(StrictModel):
     synced_revision: int | None = None
     confirmed_status: Literal["ACTIVE", "PAUSED"] | None = None
     confirmed_at: str | None = None
+    confirmation_binding: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+    requires_reconfiguration: bool = Field(default=False, exclude=True)
     updated_at: str = Field(default_factory=_now)
 
     @field_validator("objective_id")
@@ -69,6 +74,8 @@ class ObjectiveSchedule(StrictModel):
 
     @property
     def sync_status(self) -> str:
+        if self.requires_reconfiguration:
+            return "needs_reconfiguration"
         if self.synced_revision == self.revision and self.automation_id:
             return "active" if self.confirmed_status == "ACTIVE" else "paused"
         if not self.settings.enabled and not self.automation_id:
@@ -79,6 +86,13 @@ class ObjectiveSchedule(StrictModel):
         return {
             **self.model_dump(mode="json"),
             "sync_status": self.sync_status,
+            "requires_reconfiguration": self.requires_reconfiguration,
+            "reconfiguration_reason": (
+                "Cette planification doit être reconfigurée dans Codex sur cette "
+                "installation. Ses réglages ont été conservés."
+                if self.requires_reconfiguration
+                else None
+            ),
             "host_editable": host_name() == "codex",
             "host_owner": "codex",
         }
@@ -89,6 +103,13 @@ class ObjectiveScheduleStore:
 
     def __init__(self, objectives: ObjectiveStore) -> None:
         self.objectives = objectives
+
+    def _installation_binding(self) -> str:
+        """Bind external scheduler acknowledgements to this folder and computer."""
+        identity = [str(self.objectives.home.resolve()), socket.gethostname()]
+        return hashlib.sha256(
+            json.dumps(identity, ensure_ascii=False).encode("utf-8")
+        ).hexdigest()
 
     def _path(self, objective_id: str):
         self.objectives.load(objective_id)
@@ -105,6 +126,22 @@ class ObjectiveScheduleStore:
         )
         if schedule.objective_id != objective_id:
             raise ValueError("Schedule belongs to a different objective.")
+        if (
+            schedule.automation_id
+            and schedule.confirmation_binding != self._installation_binding()
+        ):
+            # Do not rewrite a copied/legacy file while reading it, and do not
+            # expose an old host's automation ID as an actionable local binding.
+            schedule = schedule.model_copy(
+                update={
+                    "automation_id": None,
+                    "synced_revision": None,
+                    "confirmed_status": None,
+                    "confirmed_at": None,
+                    "confirmation_binding": None,
+                    "requires_reconfiguration": True,
+                }
+            )
         return schedule
 
     def save(
@@ -169,6 +206,8 @@ class ObjectiveScheduleStore:
         schedule.confirmed_status = status
         schedule.confirmed_at = _now()
         schedule.synced_revision = revision
+        schedule.confirmation_binding = self._installation_binding()
+        schedule.requires_reconfiguration = False
         _atomic_json(self._path(objective_id), schedule)
         return schedule
 
@@ -182,11 +221,16 @@ class ObjectiveScheduleStore:
             "weekly": "Chaque "
             + ", ".join(days[day - 1] for day in schedule.settings.weekdays),
         }[schedule.settings.frequency]
-        marker = f"[leadgenerator-objective:{objective_id}]"
+        binding = self._installation_binding()
+        marker = (
+            f"[leadgenerator-installation:{binding}]"
+            f"[leadgenerator-objective:{objective_id}]"
+        )
         return {
             "schedule": schedule.view(),
             "automation_name": f"Prospects · {objective.name}",
             "automation_marker": marker,
+            "installation_binding": binding,
             "when": f"{frequency} à {schedule.settings.local_time} ({schedule.settings.timezone})",
             "desired_status": "ACTIVE" if schedule.settings.enabled else "PAUSED",
             "next_action": (
@@ -201,7 +245,8 @@ class ObjectiveScheduleStore:
             "prompt": (
                 f"{marker}\nUtilise le workflow Lead Generator pour produire la liste de prospects "
                 f"de l'objectif explicite {objective_id}. Commence par get_lead_interface_mode, "
-                f"puis get_lead_objective_schedule_run avec objective_id={objective_id}. "
+                f"puis get_lead_objective_schedule_run avec objective_id={objective_id} "
+                f"et expected_installation_binding={binding}. "
                 "Si run_authorized est faux, ne lance aucune recherche. Sinon, résous cet "
                 "objectif explicite avec resolve_lead_objective et recharge ses consignes, "
                 "critères et documents actuels. Réutilise le profil vendeur enregistré et son "
@@ -216,7 +261,8 @@ class ObjectiveScheduleStore:
             "instructions": (
                 "Use the host automation_update tool; prefer a thread heartbeat unless the user "
                 "requested standalone runs. Inspect an existing automation by ID, or find the "
-                "exact marker in saved automations before creating one. Preserve its unrelated "
+                "exact marker in saved automations before creating one. Never reuse an "
+                "automation from a different installation marker. Preserve its unrelated "
                 "fields. Respect the stated local timezone and daylight saving time; do not "
                 "convert to a fixed UTC hour. Never hand-edit automation files. Only after "
                 "successful host creation/update, call confirm_lead_objective_schedule with "
@@ -225,21 +271,38 @@ class ObjectiveScheduleStore:
             ),
         }
 
-    def run_context(self, objective_id: str) -> dict[str, object]:
+    def run_context(
+        self,
+        objective_id: str,
+        *,
+        expected_installation_binding: str | None = None,
+    ) -> dict[str, object]:
         objective = self.objectives.load(objective_id)
         schedule = self.load(objective_id)
+        binding = self._installation_binding()
+        binding_matches = expected_installation_binding == binding
         allowed = (
-            objective.status == "active"
+            binding_matches
+            and objective.status == "active"
             and schedule.settings.enabled
             and schedule.sync_status == "active"
         )
         return {
             "objective_id": objective_id,
+            "installation_binding": binding,
             "run_authorized": allowed,
             "reason": (
                 "ready"
                 if allowed
-                else "schedule_inactive_pending_or_objective_archived"
+                else (
+                    "schedule_installation_binding_missing_or_mismatched"
+                    if not binding_matches
+                    else (
+                        "schedule_requires_local_reconfiguration"
+                        if schedule.requires_reconfiguration
+                        else "schedule_inactive_pending_or_objective_archived"
+                    )
+                )
             ),
             "lead_count": schedule.settings.lead_count,
             "schedule": schedule.view(),

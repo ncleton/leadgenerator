@@ -88,85 +88,86 @@ pas de service d'enrichissement payant.
   leur attribution à un responsable. Vous vérifiez l'aperçu et confirmez avant
   toute écriture dans le CRM.
 
-## Installer dans Codex
+## Installer l'agent
 
-### Mac ou Linux
+Dans **Codex ou Claude**, envoyez simplement :
 
-Installez [Codex](https://developers.openai.com/codex/),
-[uv](https://docs.astral.sh/uv/) et Git, puis exécutez :
+> Installe cet agent : https://github.com/ncleton/leadgenerator
+
+L'assistant suit le [guide d'installation](docs/installation.md) : il télécharge
+le projet dans un dossier durable, installe les dépendances et configure votre
+application. Vous n'avez pas à choisir un paquet ni à saisir des commandes.
+Acceptez les autorisations ou connexions que l'application vous demande elle-même.
+
+L'installation et le moteur fonctionnent sur **macOS, Windows et Linux**.
+Sur Linux, utilisez le CLI Codex ou Claude Code en terminal ; l'intégration
+Claude Desktop concerne macOS et Windows.
+
+Si vous avez déjà téléchargé le projet, ouvrez son dossier et demandez
+**« Installe cet agent depuis ce dossier »**.
+
+Après l'installation, **quittez complètement Codex ou Claude puis relancez-le**.
+À la reprise avec Lead Generator, l'agent vous demande votre offre et votre cible.
+Une fois l'objectif créé,
+demandez une recherche. Une connexion Internet est nécessaire. Les entreprises
+et leur historique sont conservés dans une base SQLite locale ; aucun serveur
+de base de données n'est nécessaire. L'affichage visuel dépend de votre
+application ; dans un terminal, utilisez le mode texte.
+
+<details>
+<summary>Installation manuelle — usage avancé</summary>
+
+Depuis un terminal, pour Codex :
 
 ```bash
-git clone https://github.com/ncleton/leadgenerator.git
-cd leadgenerator
+git clone https://github.com/ncleton/leadgenerator.git mon-agent/code
+cd mon-agent/code
 ./scripts/install_client.sh
 ```
 
-### Windows
+Dans Claude Desktop, utilisez `./scripts/install_client.sh --host claude-desktop`.
+Pour Claude Code en terminal, utilisez `--host claude-code`.
 
-Téléchargez le projet avec **Code → Download ZIP**, décompressez-le, puis
-double-cliquez sur `scripts\install_client.cmd`.
-
-L'installateur prend en charge les prérequis et vérifie le fonctionnement de
-l'agent. Vous pouvez aussi utiliser PowerShell avec Git installé :
+Sous Windows, depuis PowerShell dans le dossier `code` :
 
 ```powershell
-git clone https://github.com/ncleton/leadgenerator.git
-Set-Location leadgenerator
-.\scripts\install_client.ps1
+.\scripts\install_client.cmd
 ```
 
-### Première utilisation
+Ajoutez `-HostTarget claude-desktop` ou `-HostTarget claude-code` pour Claude.
+N'utilisez pas directement `codex plugin add` : l'installateur prépare aussi le
+stockage privé et le runtime. Le [guide Claude](docs/claude-installation.md)
+décrit les autres formats de distribution et les limites des hôtes.
 
-Après l'installation, **quittez complètement Codex puis relancez-le**.
-Ouvrez une nouvelle conversation et demandez :
-
-> Utilise Lead Generator et aide-moi à définir mon objectif de prospection.
-
-Une fois votre offre et votre cible définies, demandez une recherche.
-Une connexion Internet est nécessaire. PostgreSQL est facultatif pour commencer,
-mais nécessaire pour conserver l'historique des entreprises.
-
-## Installer dans Claude
-
-Pour utiliser le projet dans l'onglet **Code** de Claude Desktop, installez
-Git, Node.js et [uv](https://docs.astral.sh/uv/), puis exécutez :
-
-```bash
-git clone https://github.com/ncleton/leadgenerator.git
-cd leadgenerator
-node scripts/claude/setup.cjs
-```
-
-Ouvrez ce dossier comme projet local dans Claude et demandez :
-
-> Utilise Lead Generator et aide-moi à définir mon objectif de prospection.
-
-Claude prépare la connexion au moteur. Acceptez les autorisations demandées par
-l'application et redémarrez-la si nécessaire. Le script de préparation ne remplace
-pas vos fichiers de configuration personnalisés.
-
-L'affichage visuel dépend des capacités de votre version de Claude. Dans un
-terminal, utilisez le mode texte.
-Le [guide Claude](docs/claude-installation.md) détaille les prérequis, les formats
-d'installation et les limites de chaque environnement.
+</details>
 
 ## Données et confidentialité
 
-Vos objectifs, documents, réglages et clés de services sont conservés localement.
-Ils ne sont pas inclus dans le dépôt GitHub et ne sont pas transférés
-automatiquement lorsque vous installez l'agent sur un autre ordinateur.
+Un dossier principal rassemble le logiciel et vos données, sans mettre les
+données privées dans le dépôt Git :
 
-La mémoire des entreprises utilise une base PostgreSQL locale. Elle permet de
-retrouver les fiches, de conserver leur historique et d'éviter de reproposer
-les entreprises déjà étudiées. Si PostgreSQL est installé, créez la base avec :
-
-```bash
-createdb leadgenerator
+```text
+mon-agent/
+├── code/               ← le logiciel, relié à GitHub
+└── donnees-privees/     ← objectifs, documents, réglages et mémoire des entreprises
 ```
 
-Une autre base peut être configurée avec `LEADGENERATOR_DATABASE_URL`.
-Les profils sont stockés sous `~/.codex/leadgenerator/` ; les exports privés
-du projet sont placés dans `.agent-private/`.
+L'installateur indique le dossier de données utilisé et s'il contient déjà des
+objectifs. Un nouveau dossier de données démarre vide : les anciens profils du
+compte utilisateur ne sont jamais importés automatiquement. Avec un dossier de
+code portant un autre nom, le dossier voisin s'appelle `<nom>-donnees-privees`.
+
+Pour changer d'ordinateur, fermez l'application, copiez **le dossier principal
+complet**, puis relancez l'installation depuis son nouveau dossier `code`.
+Les clés de services et les connexions aux navigateurs restent propres à chaque
+machine : reconnectez-les. Dans Codex, une installation par compte utilisateur
+est active à la fois ; installer depuis un autre dossier change le dossier de
+données utilisé après un redémarrage complet.
+
+**Ne partagez jamais le dossier principal complet ni `donnees-privees`.** Seul
+`code` est destiné à GitHub. PostgreSQL reste une option explicite ; une base
+PostgreSQL externe n'est pas transférée en copiant le dossier.
+[Stockage, sauvegarde et reprise de données](docs/storage.md).
 
 Le stockage local ne signifie pas que la recherche est hors ligne : les sites
 consultés et les services utilisés reçoivent les requêtes nécessaires. Ne
@@ -179,6 +180,7 @@ partagez pas de secrets dans vos demandes ni dans les fichiers destinés à GitH
 - [Signaler une vulnérabilité](SECURITY.md)
 - [Personnaliser l'interface](docs/ui-customization.md)
 - [Documentation Claude](docs/claude-installation.md)
+- [Stockage et transfert vers un autre ordinateur](docs/storage.md)
 
 ## Pour les développeurs
 
@@ -207,7 +209,7 @@ le [changelog](CHANGELOG.md). Le projet est distribué sous [licence MIT](LICENS
     <a href="https://docs.astral.sh/uv/"><img src="https://img.shields.io/badge/uv-locked-DE5FE9?style=for-the-badge&logo=uv&logoColor=white" alt="uv"></a>
     <a href="https://developers.openai.com/codex/"><img src="https://img.shields.io/badge/Codex-ready-000000?style=for-the-badge&logo=openai&logoColor=white" alt="Codex"></a>
     <a href="https://modelcontextprotocol.io/"><img src="https://img.shields.io/badge/MCP-2.x-142927?style=for-the-badge&logo=modelcontextprotocol&logoColor=white" alt="Model Context Protocol"></a>
-    <a href="https://www.postgresql.org/"><img src="https://img.shields.io/badge/PostgreSQL-private_memory-4169E1?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL private memory"></a>
+    <a href="https://www.sqlite.org/"><img src="https://img.shields.io/badge/SQLite-private_memory-003B57?style=for-the-badge&logo=sqlite&logoColor=white" alt="SQLite private memory"></a>
   </p>
   <p>
     <a href="https://playwright.dev/python/"><img src="https://img.shields.io/badge/Playwright-1.57+-2EAD33?style=flat-square&logo=playwright&logoColor=white" alt="Playwright"></a>

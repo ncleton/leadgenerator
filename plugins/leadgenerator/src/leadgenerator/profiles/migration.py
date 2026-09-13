@@ -2,25 +2,24 @@
 
 from __future__ import annotations
 
-import shutil
+import argparse
 from pathlib import Path
 
 from leadgenerator.profiles.offers import (
-    LEGACY_PROFILE_HOME,
-    PROFILE_HOME,
     ResearchProfile,
     save_profile,
     load_profiles,
 )
-from leadgenerator.profiles.objectives import OBJECTIVES_HOME, ObjectiveStore
+from leadgenerator.profiles.objectives import ObjectiveStore
+from leadgenerator.storage import private_path
 
 
 def migrate_legacy_offer_skills(
     *,
-    profile_home: Path = PROFILE_HOME,
-    legacy_skill_home: Path = LEGACY_PROFILE_HOME,
+    legacy_skill_home: Path,
+    profile_home: Path | None = None,
 ) -> list[Path]:
-    """Move profile data out of obsolete generated skills and remove the guides."""
+    """Copy explicitly selected legacy profiles without deleting their source."""
     migrated: list[Path] = []
     pattern = "lead-research-*/references/profile.json"
     for legacy_profile_path in sorted(legacy_skill_home.glob(pattern)):
@@ -28,14 +27,13 @@ def migrate_legacy_offer_skills(
             legacy_profile_path.read_text(encoding="utf-8")
         )
         migrated.append(save_profile(profile, profile_home))
-        shutil.rmtree(legacy_profile_path.parents[1])
     return migrated
 
 
 def migrate_offer_profiles_to_objectives(
     *,
-    profile_home: Path = PROFILE_HOME,
-    objective_home: Path = OBJECTIVES_HOME,
+    profile_home: Path,
+    objective_home: Path | None = None,
 ) -> tuple[list[str], list[str]]:
     """Non-destructively convert every legacy offer profile into an objective."""
     store = ObjectiveStore(objective_home)
@@ -70,10 +68,49 @@ def migrate_offer_profiles_to_objectives(
     return migrated, skipped
 
 
-def main() -> None:
-    """Run the local migration without printing private profile contents."""
-    migrated = migrate_legacy_offer_skills()
-    objective_ids, skipped = migrate_offer_profiles_to_objectives()
+def main(argv: list[str] | None = None) -> None:
+    """Import explicitly selected legacy offers after affirmative confirmation."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--source-home",
+        required=True,
+        type=Path,
+        help="Absolute legacy data root containing offer-profiles (never inferred).",
+    )
+    parser.add_argument(
+        "--legacy-skill-home",
+        type=Path,
+        help="Optional absolute directory of obsolete lead-research skills to copy.",
+    )
+    parser.add_argument(
+        "--confirm",
+        action="store_true",
+        help="Confirm importing the selected local data.",
+    )
+    args = parser.parse_args(argv)
+    if not args.confirm:
+        parser.error(
+            "Explicit confirmation is required: inspect the source, then add --confirm."
+        )
+    for value in (args.source_home, args.legacy_skill_home):
+        if value is not None and (not value.is_absolute() or not value.is_dir()):
+            parser.error(
+                "Every source must be an absolute path to an existing directory."
+            )
+    migrated = (
+        migrate_legacy_offer_skills(legacy_skill_home=args.legacy_skill_home)
+        if args.legacy_skill_home is not None
+        else []
+    )
+    objective_ids, skipped = migrate_offer_profiles_to_objectives(
+        profile_home=args.source_home / "offer-profiles"
+    )
+    if migrated:
+        local_ids, local_skipped = migrate_offer_profiles_to_objectives(
+            profile_home=private_path("offer-profiles")
+        )
+        objective_ids.extend(local_ids)
+        skipped.extend(local_skipped)
     print(
         f"{len(migrated)} profil(s) historique(s) migre(s) ; "
         f"{len(objective_ids)} agent(s) d'objectif cree(s) ; "

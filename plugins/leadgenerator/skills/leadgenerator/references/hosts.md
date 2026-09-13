@@ -29,11 +29,15 @@ continue. Never launch a cookie importer or access saved browser credentials.
 
 ## Local data and schedules
 
-The local Desktop extension retains the existing `~/.codex/leadgenerator` storage
-when it runs on the same machine as the same OS user. PostgreSQL and optional
-service credentials still need to be available to the launched process. A Cowork
-VM or remote environment has a different home/network: never promise it sees the
-Mac's data, database or browser. Do not copy private data to a plugin.
+Hosts share business data only when explicitly bound to the same
+`LEADGENERATOR_HOME`. Read `storage.private_directory` from
+`get_lead_interface_mode`; the same OS user alone does not establish shared data.
+The default SQLite database and business files live in that private directory,
+outside Git and the plugin cache. An old global store is never an automatic
+fallback. Service credentials and browser sessions remain machine-local. A Cowork
+VM or remote environment needs its own explicit accessible storage binding; never
+promise it sees the Mac's files, an optional PostgreSQL database or its browser.
+Do not copy private data into a plugin.
 
 Schedules currently belong to Codex. In Claude they are read-only; the server
 rejects schedule edits and confirmations. Do not invent a Claude automation ID,

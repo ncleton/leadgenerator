@@ -80,7 +80,9 @@ def build(output: Path, source: Path = SOURCE) -> dict[str, str]:
     files["server/launcher.cjs"] = (ROOT / "scripts/claude/launcher.cjs").read_bytes()
     files["README.md"] = (ROOT / "docs/claude-installation.md").read_bytes()
     files["LICENSE"] = (ROOT / "LICENSE").read_bytes()
-    codex_manifest = json.loads((source / ".codex-plugin/plugin.json").read_text())
+    codex_manifest = json.loads(
+        (source / ".codex-plugin/plugin.json").read_text(encoding="utf-8")
+    )
     version = codex_manifest["version"]
     metadata = {
         "name": "leadgenerator",
@@ -109,7 +111,7 @@ def build(output: Path, source: Path = SOURCE) -> dict[str, str]:
                 "manifest_version": "0.3",
                 **metadata,
                 "display_name": "Lead Generator",
-                "long_description": "Local research engine and MCP Apps interface. Requires uv and PostgreSQL for company memory. Private data stays in ~/.codex/leadgenerator and the configured database. Codex schedules are read-only in Claude. Optional enrichment and CRM actions require explicit human confirmation.",
+                "long_description": "Local research engine and MCP Apps interface. Requires uv and an explicit LEADGENERATOR_HOME outside the plugin cache for private data. SQLite company memory is stored in that folder. Codex schedules are read-only in Claude. Optional enrichment and CRM actions require explicit human confirmation.",
                 "server": {
                     "type": "node",
                     "entry_point": "server/launcher.cjs",
@@ -117,12 +119,16 @@ def build(output: Path, source: Path = SOURCE) -> dict[str, str]:
                         "command": "node",
                         "args": ["${__dirname}/server/launcher.cjs"],
                         "env": {
-                            key: "${user_config." + key + "}"
-                            for key in (
-                                "ENROW_API_KEY",
-                                "FULLENRICH_API_KEY",
-                                "HUBSPOT_ACCESS_TOKEN",
-                            )
+                            "LEADGENERATOR_HOME": "${user_config.LEADGENERATOR_HOME}",
+                            "LEADGENERATOR_DATABASE_URL": "",
+                            **{
+                                key: "${user_config." + key + "}"
+                                for key in (
+                                    "ENROW_API_KEY",
+                                    "FULLENRICH_API_KEY",
+                                    "HUBSPOT_ACCESS_TOKEN",
+                                )
+                            },
                         },
                     },
                 },
@@ -133,18 +139,27 @@ def build(output: Path, source: Path = SOURCE) -> dict[str, str]:
                     "runtimes": {"node": ">=18.0.0"},
                 },
                 "user_config": {
-                    key: {
+                    "LEADGENERATOR_HOME": {
                         "type": "string",
-                        "title": title,
-                        "description": "Optional. Leave empty for public research. Never paste credentials into the chat.",
-                        "sensitive": True,
-                        "required": False,
-                    }
-                    for key, title in (
-                        ("ENROW_API_KEY", "Enrow API key"),
-                        ("FULLENRICH_API_KEY", "FullEnrich API key"),
-                        ("HUBSPOT_ACCESS_TOKEN", "HubSpot access token"),
-                    )
+                        "title": "Private workspace folder",
+                        "description": "Absolute path to your durable donnees-privees folder outside the code repository and plugin cache. Existing data in that folder will be reused.",
+                        "sensitive": False,
+                        "required": True,
+                    },
+                    **{
+                        key: {
+                            "type": "string",
+                            "title": title,
+                            "description": "Optional. Leave empty for public research. Never paste credentials into the chat.",
+                            "sensitive": True,
+                            "required": False,
+                        }
+                        for key, title in (
+                            ("ENROW_API_KEY", "Enrow API key"),
+                            ("FULLENRICH_API_KEY", "FullEnrich API key"),
+                            ("HUBSPOT_ACCESS_TOKEN", "HubSpot access token"),
+                        )
+                    },
                 },
             }
         ),

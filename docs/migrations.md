@@ -2,13 +2,17 @@
 
 SDK 1.x keeps all existing MCP tool names, payload inputs, historical explorer
 and workspace resource URIs, `chat_ui`/`text_only` behavior, objective files, and
-PostgreSQL company snapshots.
+company snapshots. Business storage is explicitly bound to `LEADGENERATOR_HOME`;
+SQLite is the default company database. See [storage.md](storage.md) for fresh
+installation, backup and explicitly confirmed legacy file imports. Switching
+storage never automatically imports a global profile or converts PostgreSQL data.
 
 When no private pack exists, a default pack enables every bundled native plugin
-and selects `yaka.ui-workspace`. Existing users need no migration action and the
-existing preferences file remains valid.
+and selects `yaka.ui-workspace`. Within an explicitly selected existing store,
+the preferences format remains valid; this does not authorize discovering or
+importing another store.
 
-PostgreSQL initialization is idempotent and adds evidence, observation, score,
+Database initialization is idempotent and adds evidence, observation, score,
 commercial-outcome, and plugin-state tables without removing company records.
 `lead_payload` remains the compatibility projection while new plugins emit
 versioned observations. Direct `LeadViewItem` writes remain supported in SDK 1.x.
@@ -37,7 +41,8 @@ so explicitly cleared values never reappear. Older snapshots remain untouched
 and are replayed as deltas for their exact objective. No destructive SQL migration
 is needed. Two objectives on the same company do not share contact projections.
 
-Transaction-scoped advisory locks serialize partial updates to the same company.
+Database transactions serialize partial updates; PostgreSQL also uses
+transaction-scoped advisory locks for updates to the same company.
 The resolved projection, including existing logo, photos, posts and other contacts,
 is returned to the caller instead of rendering only the latest partial input.
 Company identity continues to prefer SIREN; a shared website domain cannot merge

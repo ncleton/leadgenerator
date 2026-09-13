@@ -115,6 +115,7 @@ async def verify(plugin_root: Path, uv_command: str | None = None) -> dict[str, 
     ) as temp_home:
         child_env = dict(os.environ)
         child_env["HOME"] = temp_home
+        child_env["LEADGENERATOR_HOME"] = str(Path(temp_home) / "donnees-privees")
         if os.name == "nt":
             child_env["USERPROFILE"] = temp_home
         if "PLAYWRIGHT_BROWSERS_PATH" not in child_env:
@@ -133,11 +134,9 @@ async def verify(plugin_root: Path, uv_command: str | None = None) -> dict[str, 
             else:
                 browser_cache = original_home / ".cache/ms-playwright"
             child_env["PLAYWRIGHT_BROWSERS_PATH"] = str(browser_cache)
-        # Prove that public sourcing and MCP UI rendering remain usable before
-        # optional PostgreSQL memory has been configured on a fresh machine.
-        child_env["LEADGENERATOR_DATABASE_URL"] = (
-            "postgresql://127.0.0.1:1/leadgenerator"
-        )
+        # Exercise the default portable backend without touching the installed
+        # binding or inheriting a database from the caller's shell.
+        child_env["LEADGENERATOR_DATABASE_URL"] = ""
         parameters = StdioServerParameters(
             command=str(uv_path),
             args=["run", "--project", ".", "--frozen", "leadgenerator-mcp"],
@@ -183,6 +182,19 @@ async def verify(plugin_root: Path, uv_command: str | None = None) -> dict[str, 
             ):
                 raise RuntimeError(
                     "mode interface: chat_ui n'est pas actif par défaut."
+                )
+            initial_resolution = structured(
+                await session.call_tool(
+                    "resolve_lead_objective", {"message": "Trouve-moi des leads"}
+                ),
+                stage="premier objectif",
+            )
+            if (
+                initial_resolution.get("decision", {}).get("status") != "unconfigured"
+                or initial_resolution.get("research_authorized") is not False
+            ):
+                raise RuntimeError(
+                    "Une installation neuve doit demander son premier objectif."
                 )
 
             composition = structured(
@@ -580,10 +592,14 @@ async def verify(plugin_root: Path, uv_command: str | None = None) -> dict[str, 
                         "n'a été retourné."
                     )
                 memory = search.get("memory")
-                if not isinstance(memory, dict) or memory.get("available") is not False:
+                if (
+                    not isinstance(memory, dict)
+                    or memory.get("available") is not True
+                    or memory.get("backend") != "sqlite"
+                ):
                     raise RuntimeError(
-                        f"mémoire optionnelle · {label}: le test isolé n'a pas "
-                        "prouvé le fonctionnement sans PostgreSQL."
+                        f"mémoire portable · {label}: la mémoire SQLite isolée "
+                        "n'a pas conservé la recherche."
                     )
 
                 explorer = structured(
@@ -689,7 +705,7 @@ async def verify(plugin_root: Path, uv_command: str | None = None) -> dict[str, 
                 "enriched_ui_contract_verified": True,
                 "lead_workflows": lead_workflows,
                 "registry_lead_count": sum(row["lead_count"] for row in lead_workflows),
-                "postgresql_optional_path_verified": True,
+                "portable_sqlite_memory_verified": True,
                 "resource_reports": resource_reports,
             }
 

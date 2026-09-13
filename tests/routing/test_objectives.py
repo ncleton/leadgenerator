@@ -176,7 +176,7 @@ def test_no_objective_and_no_match_are_explicit_states(tmp_path: Path):
     assert unconfigured.status == "unconfigured"
     assert unconfigured.clarification_prompt == OBJECTIVE_SETUP_PROMPT
     assert "Une phrase suffit" in unconfigured.clarification_prompt
-    assert "bornes de recharge" in unconfigured.clarification_prompt
+    assert "produit ou service" in unconfigured.clarification_prompt
 
     configured = _create_two_objectives(tmp_path)
     decision = configured.route("Rédige un haïku sur la pluie")
@@ -205,7 +205,7 @@ def test_generic_lead_work_requires_an_objective_choice(tmp_path: Path):
 def test_plain_offer_answer_requests_a_new_objective_without_old_names(tmp_path: Path):
     store = _create_two_objectives(tmp_path)
 
-    decision = store.route("Je veux vendre des bornes de recharge")
+    decision = store.route("Je veux vendre un service de traduction")
 
     assert decision.status == "new_objective"
     assert decision.reason == "new_offer_without_selected_objective"
