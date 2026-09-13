@@ -34,9 +34,15 @@ jobs:
       - run: uv sync --project plugins/leadgenerator --frozen
       - run: uv run --project plugins/leadgenerator playwright install --with-deps chromium
       - run: ./scripts/validate.sh
+      - name: Verify clean first-objective onboarding
+        run: uv run --project plugins/leadgenerator python scripts/verify_workspace.py
 
-  windows-runtime:
-    runs-on: windows-latest
+  portable-runtime:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
@@ -44,6 +50,7 @@ jobs:
           python-version: "3.13"
           enable-cache: true
       - name: Parse the Windows installer with Windows PowerShell
+        if: runner.os == 'Windows'
         shell: powershell
         run: |
           $tokens = $null
@@ -58,12 +65,13 @@ jobs:
             exit 1
           }
       - run: uv sync --project plugins/leadgenerator --frozen
-      - name: Test Windows installation and runtime contracts
+      - name: Install the browser used by runtime tests
         # The runtime suite exercises native MCP Apps in a real browser.
         run: uv run --project plugins/leadgenerator playwright install chromium
-      - name: Run Windows installation and runtime contracts
+      - name: Run portable storage, installation and runtime contracts
         run: >-
           uv run --project plugins/leadgenerator pytest
           -c plugins/leadgenerator/pyproject.toml
-          tests/runtime/test_installation.py
-          tests/runtime/test_server.py
+          tests
+      - name: Verify clean first-objective onboarding
+        run: uv run --project plugins/leadgenerator python scripts/verify_workspace.py

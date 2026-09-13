@@ -12,7 +12,9 @@ chaque outil.
   masqués et bloqués ; restituer uniquement du texte et des liens sources.
 - `get_lead_user_profile` et `list_lead_offer_profiles` lisent les profils locaux.
 - `save_lead_user_profile` et `save_lead_offer_profile` écrivent uniquement dans
-  `~/.codex/leadgenerator/`, après confirmation des valeurs par l'utilisateur.
+  le dossier privé lié à cette installation, retourné dans
+  `storage.private_directory` par `get_lead_interface_mode`, après confirmation
+  des valeurs par l'utilisateur. Ne jamais deviner un ancien chemin global.
 - Une URL vendeur nouvellement enregistrée laisse
   `website_analysis_required: true`. Lire réellement sa page d'accueil et ses
   pages d'offre avec `scrape_public_page`, puis appeler
@@ -21,13 +23,13 @@ chaque outil.
   un autre artefact partageable. Les guides distribués restent génériques.
 - `check_lead_integrations` indique quels services sont configurés sans révéler
   les secrets et sans consommer de crédits.
-- `get_company_memory_status` vérifie la mémoire PostgreSQL locale sans exposer
-  son URL de connexion.
+- `get_company_memory_status` vérifie la mémoire configurée (SQLite par défaut,
+  PostgreSQL sur configuration explicite) sans exposer de secret de connexion.
 - `search_remembered_companies` retrouve par nom, SIREN ou domaine les fiches
   structurées déjà conservées, sans relancer de recherche publique.
 - `get_remembered_company_history` restitue les versions immuables d'une fiche.
-- `export_company_memory` crée une vue JSON lisible au chemin absolu du dossier
-  `.agent-private/leadgenerator/database` du projet, qui reste hors Git.
+- `export_company_memory` crée une vue JSON lisible dans `exports/company-memory`
+  sous le dossier privé retourné par le serveur. Ce chemin reste hors Git.
 
 ## Recherche et vues
 
@@ -38,13 +40,13 @@ chaque outil.
   démarrer tant que l'analyse du site vendeur n'est pas enregistrée.
 - Les recherches et les deux rendus exigent l'identifiant de l'objectif actif.
   Le serveur refuse un identifiant absent, inconnu, archivé ou contradictoire et
-  PostgreSQL conserve l'association dans la fiche, la relation cumulative et le
+  la mémoire conserve l'association dans la fiche, la relation cumulative et le
   snapshot immuable.
 - `scrape_public_page` et `inspect_official_visuals` ne travaillent que sur des
   URL publiques autorisées.
 - `render_lead_explorer` et `render_lead_workspace` rendent les vues interactives
   uniquement lorsque `get_lead_interface_mode` retourne `chat_ui`, puis mettent
-  à jour la fiche PostgreSQL avec les champs structurés fournis et ajoutent un
+  à jour la fiche mémorisée avec les champs structurés fournis et ajoutent un
   snapshot immuable.
 
 ## Enrichissement payant

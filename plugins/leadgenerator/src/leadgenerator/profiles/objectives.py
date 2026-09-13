@@ -1,8 +1,7 @@
 """Private, persistent objective agents and their conversation routing.
 
-The data in this module is user-owned context.  It intentionally lives below
-``~/.codex/leadgenerator/objectives`` and is never compiled into the shareable
-plugin or one of its skills.
+The data in this module is user-owned context. It lives in the current project's
+private data directory and is never compiled into the shareable plugin or skills.
 """
 
 from __future__ import annotations
@@ -26,7 +25,8 @@ from xml.etree import ElementTree
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-OBJECTIVES_HOME = Path.home() / ".codex" / "leadgenerator" / "objectives"
+from leadgenerator.storage import private_path
+
 STATE_FILENAME = "state.json"
 MAX_ATTACHMENT_BYTES = 50 * 1024 * 1024
 MAX_EXTRACTED_CHARACTERS = 2_000_000
@@ -242,8 +242,8 @@ RouteStatus = Literal[
 ]
 
 OBJECTIVE_SETUP_PROMPT = (
-    "Que souhaitez-vous vendre à ces entreprises ? Une phrase suffit, par "
-    "exemple : « Je vends des bornes de recharge. »"
+    "Que souhaitez-vous vendre à ces entreprises ? Une phrase suffit pour "
+    "décrire votre produit ou service."
 )
 OBJECTIVE_CONVERSATION_HINT = (
     " N'hésitez pas à renommer cette conversation avec le nom de l'objectif "
@@ -613,8 +613,8 @@ def extract_document_text(source: Path, mime_type: str | None = None) -> str:
 class ObjectiveStore:
     """Filesystem-backed CRUD and routing for private objective agents."""
 
-    def __init__(self, home: Path = OBJECTIVES_HOME) -> None:
-        self.home = Path(home)
+    def __init__(self, home: Path | None = None) -> None:
+        self.home = Path(home) if home is not None else private_path("objectives")
 
     def _objective_dir(self, objective_id: str) -> Path:
         return self.home / validate_identifier(objective_id, label="objective_id")
@@ -1474,7 +1474,6 @@ def route_objective(
 __all__ = [
     "DocumentProvenance",
     "MAX_ATTACHMENT_BYTES",
-    "OBJECTIVES_HOME",
     "Objective",
     "ObjectiveAgent",
     "ObjectiveAttachment",

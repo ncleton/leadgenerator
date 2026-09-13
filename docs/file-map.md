@@ -24,13 +24,18 @@ responsabilité visible.
 | `plugins/leadgenerator/uv.lock` | Résolution reproductible des dépendances | `uv` |
 | `tests/<responsabilité>/` | Vérification en miroir du runtime | Pytest |
 | `scripts/install_client.*` | Installation reproductible du plugin | Utilisateur |
-| `.agent-private/leadgenerator/database/` | Miroir JSON local des fiches et snapshots, toujours hors Git | Utilisateur |
-| `~/.codex/leadgenerator/packs/` | Packs, superpositions par objectif et rollback privés | Runtime local |
-| `~/.codex/leadgenerator/extensions/` | Bundles UI ou processus client approuvés par empreinte | Runtime local |
+| `LEADGENERATOR_HOME/memory.sqlite3` | Mémoire privée par défaut : fiches, contacts et historique | Runtime local |
+| `LEADGENERATOR_HOME/exports/company-memory/` | Miroir JSON local des fiches et snapshots, toujours hors Git | Utilisateur |
+| `LEADGENERATOR_HOME/packs/` | Packs, superpositions par objectif et rollback privés | Runtime local |
+| `LEADGENERATOR_HOME/extensions/` | Bundles UI ou processus client approuvés par empreinte | Runtime local |
 | `AGENTS.md` | Consignes pour modifier le dépôt | Agents de développement |
 | `README.md` | Entrée produit, installation et contribution | Lecteur humain |
 
 ## Ce qui n'est volontairement pas présent
+
+`LEADGENERATOR_HOME` est lié explicitement au dossier privé de l'installation,
+normalement `donnees-privees/` à côté du dépôt `code/`. Ces données ne se trouvent
+ni dans Git ni dans le cache du plugin. Voir [storage.md](storage.md).
 
 - pas de second dossier `skills/` à la racine ;
 - pas d'agent externe imbriqué : les agents d'objectif sont des contextes persistants 1:1 résolus par le serveur MCP ;

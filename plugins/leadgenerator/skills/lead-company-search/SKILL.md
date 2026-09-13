@@ -22,8 +22,9 @@ NAF code or calling any company-search service.
    combined filters call `search_french_companies`. When `interface_enabled` is
    true, complete missing geolocation, then pass the returned leads to `render_lead_explorer`; the search
    tools deliberately do not own a UI template so text-only mode remains possible.
-   Both search tools persist returned identities in private local PostgreSQL and
-   exclude companies already seen in earlier searches. Preserve this default;
+   Both search tools persist returned identities in the bound private company
+   memory (SQLite by default) and exclude companies already seen in earlier
+   searches. Preserve this default;
    use `include_previously_seen=true` only when the user explicitly requests a
    review of earlier candidates.
    For every geographic filter, map and present the active matching establishment,

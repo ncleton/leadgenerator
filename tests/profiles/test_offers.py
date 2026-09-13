@@ -22,15 +22,15 @@ def test_profile_is_saved_as_private_json_without_a_guide(tmp_path: Path):
     profile = build_profile(
         seller_name="Camille Martin",
         seller_company="Example Conseil",
-        offer_name="Bornes de recharge",
-        offer_description="Installer des bornes sur les parkings d'entreprise",
-        target_companies="PME avec parking",
+        offer_name="Traduction",
+        offer_description="Traduire les documents professionnels",
+        target_companies="PME exportatrices",
         geography="France",
         signals=[
             ResearchSignal(
-                name="Nouveaux véhicules",
-                rationale="Un renouvellement de flotte peut créer un besoin",
-                evidence_to_find="Annonce datée et sourcée d'achat de véhicules",
+                name="Nouveau marché",
+                rationale="Une expansion internationale peut créer un besoin",
+                evidence_to_find="Annonce datée et sourcée d'un lancement international",
                 priority="high",
             )
         ],
@@ -38,7 +38,7 @@ def test_profile_is_saved_as_private_json_without_a_guide(tmp_path: Path):
 
     path = save_profile(profile, tmp_path)
 
-    assert path == tmp_path / "bornes-de-recharge.json"
+    assert path == tmp_path / "traduction.json"
     assert path.exists()
     assert not list(tmp_path.rglob("SKILL.md"))
     assert load_profiles(tmp_path)[0] == profile
@@ -89,8 +89,8 @@ def test_saving_same_offer_creates_a_new_profile_version(tmp_path: Path):
     assert load_profiles(tmp_path)[0].version == 2
 
 
-def test_legacy_profile_skill_is_migrated_then_removed(tmp_path: Path):
-    """An obsolete guide cannot retain seller or client profile values."""
+def test_legacy_profile_skill_is_copied_without_deleting_the_source(tmp_path: Path):
+    """An explicit import preserves old data until its owner removes it."""
     legacy_home = tmp_path / "skills"
     legacy_folder = legacy_home / "lead-research-private-offer"
     references = legacy_folder / "references"
@@ -117,7 +117,8 @@ def test_legacy_profile_skill_is_migrated_then_removed(tmp_path: Path):
     )
 
     assert migrated == [private_home / "private-offer.json"]
-    assert not legacy_folder.exists()
+    assert (legacy_folder / "SKILL.md").exists()
+    assert (references / "profile.json").exists()
     assert load_profiles(private_home)[0].offer_name == "Private offer"
 
 

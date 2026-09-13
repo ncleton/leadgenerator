@@ -2,6 +2,8 @@
 
 import asyncio
 import json
+import os
+from pathlib import Path
 from types import SimpleNamespace
 
 import leadgenerator.mcp.server as server_module
@@ -655,7 +657,8 @@ def test_resolver_blocks_research_and_returns_the_objective_example(
 
     assert result["research_authorized"] is False
     assert result["next_action"] == "ask_clarification"
-    assert "bornes de recharge" in result["decision"]["clarification_prompt"]
+    assert "Que souhaitez-vous vendre" in result["decision"]["clarification_prompt"]
+    assert "bornes de recharge" not in result["decision"]["clarification_prompt"]
 
 
 def test_resolver_turns_a_plain_offer_answer_into_a_new_objective_action(
@@ -671,7 +674,7 @@ def test_resolver_turns_a_plain_offer_answer_into_a_new_objective_action(
     )
     monkeypatch.setattr("leadgenerator.mcp.server.ObjectiveStore", lambda: store)
 
-    result = resolve_lead_objective("Je veux vendre des bornes de recharge")
+    result = resolve_lead_objective("Je veux vendre une nouvelle offre")
 
     assert result["research_authorized"] is False
     assert result["next_action"] == "create_objective"
@@ -1848,6 +1851,9 @@ def test_company_memory_boundary_tools_preserve_their_public_contract(tmp_path):
     observations = get_lead_observations("siren:123456789", "objective-test")
     export = export_company_memory(str(tmp_path / ".agent-private" / "export"))
 
+    assert status.pop("private_directory") == str(
+        Path(os.environ["LEADGENERATOR_HOME"]).resolve()
+    )
     assert status == {
         "backend": "postgresql",
         "connected": True,

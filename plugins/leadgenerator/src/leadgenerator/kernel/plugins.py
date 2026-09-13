@@ -509,8 +509,16 @@ def sandbox_extension_command(manifest: PluginManifest, runtime_dir: Path) -> li
             "Direct client-extension filesystem access is unsupported; use RPC input."
         )
     command = list(manifest.spec.command)
-    private_root = Path.home() / ".codex" / "leadgenerator"
-    protected = [private_root, Path.home() / ".ssh", Path.home() / ".aws"]
+    from leadgenerator.storage import private_home
+
+    private_root = private_home()
+    protected = [
+        private_root,
+        # Historical data remains private even though the runtime never reuses it.
+        Path.home() / ".codex" / "leadgenerator",
+        Path.home() / ".ssh",
+        Path.home() / ".aws",
+    ]
     if sys.platform == "darwin" and shutil.which("sandbox-exec"):
         profile = runtime_dir / "extension.sb"
         rules = [

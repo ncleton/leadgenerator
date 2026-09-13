@@ -10,7 +10,8 @@ from urllib.parse import urlparse
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-USER_PROFILE_HOME = Path.home() / ".codex" / "leadgenerator"
+from leadgenerator.storage import private_path
+
 USER_PROFILE_FILENAME = "user-profile.json"
 
 
@@ -107,18 +108,22 @@ def record_website_analysis(
     return profile.model_copy(update={"website_analysis": analysis})
 
 
-def user_profile_path(profile_home: Path = USER_PROFILE_HOME) -> Path:
+def user_profile_path(profile_home: Path | None = None) -> Path:
     """Return the local path without tying callers to the storage layout."""
-    return profile_home / USER_PROFILE_FILENAME
+    return (
+        profile_home / USER_PROFILE_FILENAME
+        if profile_home is not None
+        else private_path(USER_PROFILE_FILENAME)
+    )
 
 
 def save_user_profile(
     profile: UserProfile,
-    profile_home: Path = USER_PROFILE_HOME,
+    profile_home: Path | None = None,
 ) -> Path:
     """Persist seller defaults outside the repository and shared plugin."""
-    profile_home.mkdir(parents=True, exist_ok=True)
     path = user_profile_path(profile_home)
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         json.dumps(profile.model_dump(), ensure_ascii=False, indent=2),
         encoding="utf-8",
@@ -129,7 +134,7 @@ def save_user_profile(
 
 
 def load_user_profile(
-    profile_home: Path = USER_PROFILE_HOME,
+    profile_home: Path | None = None,
 ) -> UserProfile | None:
     """Load the local seller defaults when onboarding already happened."""
     path = user_profile_path(profile_home)

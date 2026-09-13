@@ -73,6 +73,7 @@ from leadgenerator.profiles.user import (
     save_user_profile,
     website_host,
 )
+from leadgenerator.storage import private_home, validate_private_home
 from leadgenerator.research.company_research import (
     CompanyIdentity,
     LeadershipCandidate,
@@ -345,7 +346,7 @@ def _memory_metadata(
         )
     except RuntimeError:
         return scoped_leads, {
-            "backend": "postgresql",
+            "backend": getattr(company_memory, "backend", "postgresql"),
             "available": False,
             "stored_companies": None,
             "new_companies": None,
@@ -367,7 +368,7 @@ def _memory_metadata(
         ]
     )
     return visible, {
-        "backend": "postgresql",
+        "backend": getattr(company_memory, "backend", "postgresql"),
         "available": True,
         "stored_companies": result.stored_count,
         "new_companies": len(result.new_keys),
@@ -576,7 +577,7 @@ website_analysis_required=true, scrape the user-approved homepage and relevant
 offer pages, then call record_lead_website_analysis before defining a lead target
 or starting company search. Never replace this evidence with generic targeting
 assumptions. Every company search and persisted UI refresh requires a validated
-active objective_id. PostgreSQL stores that ID in the card payload, the company's
+active objective_id. Private memory stores that ID in the card payload, the company's
 objective_ids relation, and every new immutable snapshot. Keep each lead, note, document, and
 follow-up scoped to exactly one objective. Authenticated social research through
 query_authenticated_social_source requires explicit approval for each call. Keep
@@ -1644,7 +1645,7 @@ def check_lead_integrations(
     name="get_company_memory_status",
     title="Vérifier la mémoire des entreprises",
     description=(
-        "Check the private local PostgreSQL company memory and return only safe "
+        "Check the project-scoped private company memory and return only safe "
         "connection metadata and the number of distinct remembered companies."
     ),
     annotations=ToolAnnotations(
@@ -1658,14 +1659,14 @@ def check_lead_integrations(
 def get_company_memory_status() -> dict[str, object]:
     """Return safe local-memory status without exposing database credentials."""
     _require_capability("company-memory")
-    return company_memory.status()
+    return {**company_memory.status(), "private_directory": str(private_home())}
 
 
 @server.tool(
     name="search_remembered_companies",
     title="Retrouver des entreprises déjà examinées",
     description=(
-        "Search the private local PostgreSQL memory without contacting a public "
+        "Search the project-scoped private memory without contacting a public "
         "directory. Use it to reopen previously researched company cards."
     ),
     annotations=ToolAnnotations(
@@ -1694,7 +1695,7 @@ def search_remembered_companies(
         "kind": "remembered_company_results",
         "count": len(matches),
         "companies": matches,
-        "source": "private_local_postgresql",
+        "source": "private_local_" + getattr(company_memory, "backend", "postgresql"),
     }
 
 
@@ -1702,7 +1703,7 @@ def search_remembered_companies(
     name="get_remembered_company_history",
     title="Consulter l'historique d'une entreprise",
     description=(
-        "Return immutable PostgreSQL snapshots for one remembered company without "
+        "Return immutable private snapshots for one remembered company without "
         "contacting any public service."
     ),
     annotations=ToolAnnotations(
@@ -1728,7 +1729,7 @@ def get_remembered_company_history(
         "company_key": company_key,
         "count": len(snapshots),
         "snapshots": snapshots,
-        "source": "private_local_postgresql",
+        "source": "private_local_" + getattr(company_memory, "backend", "postgresql"),
     }
 
 
@@ -1737,8 +1738,8 @@ def get_remembered_company_history(
     title="Afficher la mémoire dans le dossier privé",
     description=(
         "Export every current company card and immutable snapshot to readable JSON "
-        "files inside .agent-private or ~/.codex/leadgenerator. PostgreSQL remains "
-        "the authoritative database."
+        "files below storage.private_directory returned by get_lead_interface_mode. "
+        "The configured SQLite or PostgreSQL database remains authoritative."
     ),
     annotations=ToolAnnotations(
         readOnlyHint=False,
@@ -1755,7 +1756,7 @@ def export_company_memory(output_directory: str) -> dict[str, object]:
     return {
         "kind": "company_memory_export",
         **result,
-        "authoritative_backend": "postgresql",
+        "authoritative_backend": getattr(company_memory, "backend", "postgresql"),
         "git_tracked": False,
     }
 
@@ -1915,6 +1916,12 @@ def set_lead_search_preferences(desired_lead_count: int) -> dict[str, object]:
 def get_lead_interface_mode(ctx: Context = None) -> dict[str, object]:
     """Return the persistent presentation mode for this local installation."""
     result = _interface_status(load_preferences())
+    result["storage"] = {
+        "private_directory": str(private_home()),
+        "scope": "workspace",
+        "backend": getattr(company_memory, "backend", "postgresql"),
+        "legacy_auto_import": False,
+    }
     capabilities = ctx.client_capabilities if ctx is not None else None
     extensions = getattr(capabilities, "extensions", None) or {}
     result["host"]["mcp_apps_negotiation"] = (
@@ -2313,8 +2320,12 @@ def confirm_lead_objective_schedule(
     ),
     structured_output=True,
 )
-def get_lead_objective_schedule_run(objective_id: str) -> dict[str, object]:
-    return ObjectiveScheduleStore(ObjectiveStore()).run_context(objective_id)
+def get_lead_objective_schedule_run(
+    objective_id: str, expected_installation_binding: str | None = None
+) -> dict[str, object]:
+    return ObjectiveScheduleStore(ObjectiveStore()).run_context(
+        objective_id, expected_installation_binding=expected_installation_binding
+    )
 
 
 @server.tool(
@@ -2677,7 +2688,8 @@ def archive_lead_objective(
     title="Migrer les profils d'offre en objectifs",
     description=(
         "Non-destructively convert legacy private offer profiles into private "
-        "objective-agent records. Existing objective IDs are skipped."
+        "objective-agent records from an explicitly selected source directory "
+        "after human confirmation. Existing objective IDs are skipped."
     ),
     annotations=ToolAnnotations(
         readOnlyHint=False,
@@ -2687,9 +2699,18 @@ def archive_lead_objective(
     ),
     structured_output=True,
 )
-def migrate_lead_offer_profiles_to_objectives() -> dict[str, object]:
+def migrate_lead_offer_profiles_to_objectives(
+    source_home: str, confirm_import: bool = False
+) -> dict[str, object]:
     """Convert legacy local offer profiles without copying data into the plugin."""
-    migrated, skipped = migrate_offer_profiles_to_objectives()
+    if not confirm_import:
+        raise ToolError(
+            "Confirmez l'import du dossier source avant de reprendre ses profils."
+        )
+    source = validate_private_home(Path(source_home))
+    migrated, skipped = migrate_offer_profiles_to_objectives(
+        profile_home=source / "offer-profiles"
+    )
     return {"migrated": migrated, "skipped": skipped, "profiles_deleted": False}
 
 
@@ -2946,7 +2967,7 @@ def sync_hubspot_contacts(
         "official public-register facts and direct source links in either "
         "presentation mode. objective_id is required and must reference the active "
         "persisted objective. Every returned identity and snapshot is remembered "
-        "under that objective in private local PostgreSQL, and previously seen "
+        "under that objective in project-scoped private memory, and previously seen "
         "companies are excluded by default. For one "
         "explicit NAF/APE code, prefer search_companies_by_naf. Only call a render "
         "tool when chat_ui is enabled."
@@ -3144,7 +3165,7 @@ def _company_record_to_lead(company: dict[str, object]) -> LeadViewItem | None:
         "reference the active persisted objective. Do not use search_french_companies "
         "for this case. Only call a render tool when chat_ui is enabled. Company "
         "websites remain missing until separately qualified. Every returned "
-        "identity is remembered in private local PostgreSQL and previously seen "
+        "identity is remembered in project-scoped private memory and previously seen "
         "companies are excluded by default."
     ),
     annotations=ToolAnnotations(
@@ -3289,7 +3310,7 @@ def _mcp_app_result(payload: dict[str, object], summary: str) -> CallToolResult:
         "IGN aerial view, leader, news, public-profile coverage, top-five contacts, "
         "and sourced outreach angle. objective_id is required and must reference "
         "the active persisted objective. It refreshes each supplied company card "
-        "under that objective in private local PostgreSQL, and never spends credits, sends outreach, or "
+        "under that objective in project-scoped private memory, and never spends credits, sends outreach, or "
         "synchronizes it. Every lead requires sourced location coordinates. "
         "Geocode missing project addresses first; use precision=approximate for "
         "a sourced street/area/municipality fallback and label that granularity. "
@@ -3413,7 +3434,7 @@ def render_lead_workspace(
         "public-profile coverage, ranked top-five contacts, sourced outreach angle, "
         "integration states, and the HubSpot review. active_objective_id is required "
         "and must reference the active persisted objective. It refreshes each supplied "
-        "company card under that objective in private local PostgreSQL; UI actions continue in chat and "
+        "company card under that objective in project-scoped private memory; UI actions continue in chat and "
         "never authorize a paid lookup or CRM write. Pass browser_scope_id from the "
         "current conversation/browser observation to display its LinkedIn connection; "
         "omitting it displays unknown, never another conversation's account state."

@@ -77,8 +77,14 @@ def test_generated_packages_are_portable_and_do_not_copy_codex_configuration(tmp
                     "${__dirname}/server/launcher.cjs"
                 ]
                 assert ".mcp.json" not in names
+                assert manifest["user_config"]["LEADGENERATOR_HOME"]["required"] is True
+                assert manifest["server"]["mcp_config"]["env"][
+                    "LEADGENERATOR_HOME"
+                ] == ("${user_config.LEADGENERATOR_HOME}")
                 assert all(
-                    item["sensitive"] for item in manifest["user_config"].values()
+                    item["sensitive"]
+                    for name, item in manifest["user_config"].items()
+                    if name != "LEADGENERATOR_HOME"
                 )
 
 

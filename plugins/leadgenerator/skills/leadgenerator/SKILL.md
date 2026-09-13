@@ -24,9 +24,10 @@ immediately in `chat_ui`; do not repeat public research unless the user asks for
 fresh information or the requested field is missing or stale. Clearly retain the
 recorded source dates when answering from memory.
 
-Company-search tools automatically save every returned identity in private local
-PostgreSQL and exclude previously seen companies by default. Keep that default
-for prospect sourcing. Set `include_previously_seen: true` only when the user
+Company-search tools automatically save every returned identity in the bound
+private company memory (SQLite by default) and exclude previously seen companies
+by default. Keep that default for prospect sourcing. Set
+`include_previously_seen: true` only when the user
 explicitly wants earlier candidates included. Every explorer or workspace render
 refreshes the remembered card with the supplied structured fields, including the
 official site, sourced facts, logo and image URLs, contacts, news, signals,
@@ -41,12 +42,13 @@ then stores the association in the lead payload, the company's cumulative
 `objective_ids`, and the immutable snapshot. A company may belong to several
 objectives over time, but one operation can never cross-contaminate another scope.
 
-When the user asks to see the database in the project folder, call
-`export_company_memory` with the absolute path to the current project's
-`.agent-private/leadgenerator/database` directory. The export contains one
-readable `current.json` and an append-only `history.jsonl` per company, plus a
-searchable `index.json`. PostgreSQL remains authoritative; the folder is a
-private mirror outside Git.
+When the user asks to see a readable export in the project folder, take the
+absolute private directory returned as `storage.private_directory` by
+`get_lead_interface_mode` and call `export_company_memory` with its
+`exports/company-memory` subdirectory. Never guess a path from the plugin cache
+or user home. The export contains one readable `current.json` and an append-only
+`history.jsonl` per company, plus a searchable `index.json`. The configured
+database remains authoritative; the export is a private mirror outside Git.
 
 ## Select the presentation mode
 
@@ -56,8 +58,11 @@ Keep its provenance distinct from host-browser observations. Do not substitute
 a connector when the user specifically asks to use the current host browser.
 
 At the start of every lead session, call `get_lead_interface_mode` before
-any objective resolution, search, browsing, or public research. If the user asks
-in natural language to enable or disable
+any objective resolution, search, browsing, or public research. Its
+`storage.private_directory` identifies this installation's bound private store.
+Use only that store for profiles, objectives, preferences and company memory;
+never search an unrelated global home or import old objectives automatically.
+If the user asks in natural language to enable or disable
 visual or contextual interfaces, immediately call `set_lead_interface_mode` with
 one of these values and briefly confirm the change:
 
@@ -265,14 +270,15 @@ or asks for a refresh.
 
 Update the profile only when the user explicitly corrects or replaces it. The
 generic skill and plugin must never contain one user's identity; it belongs in
-`~/.codex/leadgenerator/user-profile.json` on that user's machine. Read
+`user-profile.json` under the bound private directory. Read
 [references/tools.md](references/tools.md) before using a tool that can spend
 credits or write to a connected service.
 
 Treat every seller and offer profile as private local data. Store it only below
-`~/.codex/leadgenerator/`; never copy profile values into this plugin, a generated
-skill, a guide, an export template, or another shareable artifact. A guide must
-remain useful after all user- and client-specific values are removed.
+the bound `LEADGENERATOR_HOME`, outside Git; never copy profile values into this
+plugin, a generated skill, a guide, an export template, or another shareable
+artifact. A guide must remain useful after all user- and client-specific values
+are removed.
 
 Run `check_lead_integrations` before the first paid lookup or CRM action. This
 check does not consume credits.
@@ -297,8 +303,9 @@ Read [references/integrations.md](references/integrations.md) for setup details.
    not authorized, ask the returned question and stop. Establish the selected objective's offer,
    ideal company, geography, exclusions, target roles, examples, and useful
    commercial signals.
-   Reuse the local user identity and migrate a saved legacy offer profile when it
-   exists; do not silently merge two objectives.
+   Reuse only the identity saved in the bound private directory. Legacy imports
+   require an explicitly chosen source and confirmation; never silently migrate
+   profiles or merge two objectives.
 2. For a named company, check `search_remembered_companies` first. Otherwise,
    invoke `$lead-company-search` to translate the natural-language target into
    NAF and public-register filters. In `chat_ui`, render the explorer and let the

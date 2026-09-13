@@ -2,7 +2,7 @@
 
 OBJECTIVE_MANAGEMENT_JS = r"""
       const splitLines = value => String(value||"").split("\n").map(row=>row.trim()).filter(Boolean);
-      const scheduleLabels = {active:"Activée dans Codex",paused:"En pause dans Codex",pending:"En attente de synchronisation",not_configured:"Non activée"};
+      const scheduleLabels = {active:"Activée dans Codex",paused:"En pause dans Codex",pending:"En attente de synchronisation",not_configured:"Non activée",needs_reconfiguration:"À reconfigurer sur cette installation"};
       function canCallLeadTool() {
         const bridge=window.leadGeneratorMcpApp;
         return typeof window.openai?.callTool === "function" || (bridge?.connected && (!bridge.hostCapabilities || Boolean(bridge.hostCapabilities.serverTools)));

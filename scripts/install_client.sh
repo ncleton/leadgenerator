@@ -4,14 +4,63 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
+HOST_TARGET="codex"
+if [[ $# -gt 0 ]]; then
+    if [[ $# -ne 2 || "$1" != "--host" ]]; then
+        echo "Usage: scripts/install_client.sh [--host codex|claude-code|claude-desktop]"
+        exit 1
+    fi
+    HOST_TARGET="$2"
+fi
+case "$HOST_TARGET" in
+    codex|claude-code|claude-desktop) ;;
+    *) echo "Hote inconnu : $HOST_TARGET"; exit 1 ;;
+esac
+
+# Install missing tools from the vendors' official HTTPS installers. Download
+# first so a failed transfer can never be mistaken for a successful shell run.
+install_official_tool() {
+    local url="$1"
+    local download
+    download="$(mktemp)"
+    if ! curl --proto '=https' --tlsv1.2 -fsSL "$url" -o "$download"; then
+        rm -f "$download"
+        return 1
+    fi
+    sh "$download" || { rm -f "$download"; return 1; }
+    rm -f "$download"
+    export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
+    hash -r
+}
+
 if ! command -v uv >/dev/null 2>&1; then
-    echo "uv n'est pas installe. Installe-le depuis https://docs.astral.sh/uv/ puis relance ce script."
-    exit 1
+    echo "Installation automatique de uv."
+    UV_NO_MODIFY_PATH=1 install_official_tool "https://astral.sh/uv/install.sh"
+fi
+
+if [[ "$HOST_TARGET" != "codex" ]]; then
+    uv sync --project plugins/leadgenerator --frozen --python 3.13
+    LEADGENERATOR_HOME="$(uv run --project plugins/leadgenerator --frozen python \
+        scripts/configure_workspace.py --code-root "$ROOT_DIR" --print-home)"
+    export LEADGENERATOR_HOME
+    export LEADGENERATOR_DATABASE_URL=""
+    export LEADGENERATOR_HOST="claude"
+    if [[ "$(uname -s)" == "Linux" ]]; then
+        uv run --project plugins/leadgenerator --frozen playwright install --with-deps chromium
+    else
+        uv run --project plugins/leadgenerator --frozen playwright install chromium
+    fi
+    uv run --project plugins/leadgenerator --frozen python scripts/verify_workspace.py
+    uv run --project plugins/leadgenerator --frozen python scripts/install_claude.py \
+        --code-root "$ROOT_DIR" --uv-command "$(command -v uv)" --host "$HOST_TARGET"
+    echo "Installation terminee. Quitte completement Claude puis relance-le dans ce projet."
+    echo "Le premier usage d'un dossier neuf demande de creer un objectif."
+    exit 0
 fi
 
 if ! command -v codex >/dev/null 2>&1; then
-    echo "Codex n'est pas installe. Installe-le depuis https://developers.openai.com/codex/ puis relance ce script."
-    exit 1
+    echo "Installation automatique du CLI Codex."
+    install_official_tool "https://chatgpt.com/codex/install.sh"
 fi
 CODEX_BIN="$(command -v codex)"
 MIN_CODEX_VERSION="0.153.4"
@@ -45,7 +94,14 @@ fi
 
 echo "Installation de Lead Generator dans $ROOT_DIR"
 uv sync --project plugins/leadgenerator --frozen --python 3.13
-uv run --project plugins/leadgenerator leadgenerator-migrate-profiles
+LEADGENERATOR_HOME="$(uv run --project plugins/leadgenerator --frozen python \
+    scripts/configure_workspace.py --code-root "$ROOT_DIR" --print-home)"
+export LEADGENERATOR_HOME
+export LEADGENERATOR_DATABASE_URL=""
+echo "Donnees privees de cette installation : $LEADGENERATOR_HOME"
+echo "Aucun ancien objectif ou profil global n'est importe automatiquement."
+uv run --project plugins/leadgenerator --frozen python \
+    scripts/configure_workspace.py --code-root "$ROOT_DIR"
 
 if [[ "$(uname -s)" == "Linux" ]]; then
     uv run --project plugins/leadgenerator playwright install --with-deps chromium
@@ -97,7 +153,7 @@ for skill in "${LEGACY_SKILLS[@]}"; do
     skill_path="$HOME/.codex/skills/$skill"
     if [[ -d "$skill_path" ]]; then
         if [[ -z "$LEGACY_BACKUP" ]]; then
-            LEGACY_BACKUP="$HOME/.codex/leadgenerator/legacy-skill-backups/$(date -u +%Y%m%dT%H%M%SZ)"
+            LEGACY_BACKUP="$LEADGENERATOR_HOME/legacy-skill-backups/$(date -u +%Y%m%dT%H%M%SZ)"
             mkdir -p "$LEGACY_BACKUP"
         fi
         mv "$skill_path" "$LEGACY_BACKUP/$skill"
@@ -106,6 +162,9 @@ done
 if [[ -n "$LEGACY_BACKUP" ]]; then
     echo "Anciens skills generiques archives dans $LEGACY_BACKUP"
 fi
+
+uv run --project plugins/leadgenerator --frozen python \
+    scripts/register_codex_marketplace.py --code-root "$ROOT_DIR" --codex-command "$CODEX_BIN"
 
 # Local marketplace installs copy the plugin into Codex's cache. A copied Python
 # virtual environment contains absolute links to its original location and is not
@@ -126,9 +185,6 @@ if [[ -d "$PLUGIN_VENV" ]]; then
     trap restore_plugin_venv EXIT
 fi
 
-if ! "$CODEX_BIN" plugin marketplace list | grep -Fq "$ROOT_DIR"; then
-    "$CODEX_BIN" plugin marketplace add "$ROOT_DIR"
-fi
 "$CODEX_BIN" plugin add "$PLUGIN_NAME"
 
 # Build the cached environment explicitly. Running `codex plugin add` directly
@@ -143,6 +199,9 @@ if [[ -d "$INSTALLED_PLUGIN_ROOT/.venv" && ! -x "$INSTALLED_PLUGIN_ROOT/.venv/bi
     uv venv --clear --python 3.13 "$INSTALLED_PLUGIN_ROOT/.venv"
 fi
 uv sync --project "$INSTALLED_PLUGIN_ROOT" --frozen --python 3.13
+uv run --project "$INSTALLED_PLUGIN_ROOT" --frozen python \
+    "$ROOT_DIR/scripts/configure_workspace.py" --code-root "$ROOT_DIR" \
+    --plugin-root "$INSTALLED_PLUGIN_ROOT"
 uv run --project "$INSTALLED_PLUGIN_ROOT" --frozen python -c \
     'import leadgenerator.mcp.server'
 uv run --project "$INSTALLED_PLUGIN_ROOT" --frozen python \
@@ -165,6 +224,7 @@ trap - EXIT
 echo
 echo "Installation et validation reelle terminees. Le plugin Lead Generator, son serveur MCP et son interface sont fonctionnels."
 echo "Quitte completement l'application ChatGPT/Codex puis relance-la : un simple nouvel onglet ne recharge pas les plugins installes."
+echo "Le plugin utilise maintenant les donnees du dossier affiche ci-dessus. Les autres dossiers restent intacts."
 echo "Dans une nouvelle conversation apres redemarrage, demande :"
 echo "  Trouve-moi des leads dans l'industrie."
 echo "Sans objectif configure, l'agent doit d'abord te demander ton offre et ta cible."

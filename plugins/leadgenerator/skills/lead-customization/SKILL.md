@@ -12,8 +12,10 @@ below apply to client UI customization, not to authorized engine development.
 
 Adapt the installed product from the user's natural-language request without
 editing bundled HTML, Python, skills, or native manifests. All changes belong in
-the private pack below `~/.codex/leadgenerator/` through the MCP tools. When a new
-extension is necessary, author it from a shipped template directly below the
+the private pack under the installation's bound `LEADGENERATOR_HOME` through the
+MCP tools. Read `storage.private_directory` from `get_lead_interface_mode` when a
+filesystem path is needed; never guess a global-home or plugin-cache path. When a
+new extension is necessary, author it from a shipped template directly below the
 private `extensions/` directory with normal coding tools, validate it, and only
 then activate it through a preview; never create it inside the shared repository.
 

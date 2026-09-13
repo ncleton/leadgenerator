@@ -12,8 +12,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-PROFILE_HOME = Path.home() / ".codex" / "leadgenerator" / "offer-profiles"
-LEGACY_PROFILE_HOME = Path.home() / ".codex" / "skills"
+from leadgenerator.storage import private_path
 
 
 class StrictModel(BaseModel):
@@ -117,9 +116,12 @@ def build_profile(
 
 def save_profile(
     profile: ResearchProfile,
-    profile_home: Path = PROFILE_HOME,
+    profile_home: Path | None = None,
 ) -> Path:
     """Persist one private profile without generating a shareable guide."""
+    profile_home = (
+        profile_home if profile_home is not None else private_path("offer-profiles")
+    )
     profile_home.mkdir(parents=True, exist_ok=True)
     path = profile_home / f"{profile.profile_id}.json"
     if path.exists():
@@ -140,8 +142,11 @@ def save_profile(
     return path
 
 
-def load_profiles(profile_home: Path = PROFILE_HOME) -> list[ResearchProfile]:
+def load_profiles(profile_home: Path | None = None) -> list[ResearchProfile]:
     """Load every valid locally saved offer profile."""
+    profile_home = (
+        profile_home if profile_home is not None else private_path("offer-profiles")
+    )
     if not profile_home.exists():
         return []
     profiles = []

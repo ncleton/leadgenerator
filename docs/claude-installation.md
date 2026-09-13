@@ -2,25 +2,36 @@
 
 ## Open this folder in Claude (normal project workflow)
 
-After cloning, run `node scripts/claude/setup.cjs` once to create the local root
-configuration from the reviewed `scripts/claude/templates/` files. Node.js is
-required. This idempotent helper refuses to overwrite customized files. Root
-host configuration stays local under the unchanged publication policy.
+The user can simply ask Claude: “Installe cet agent :
+https://github.com/ncleton/leadgenerator”. The installing assistant follows
+[installation.md](installation.md), downloads the source when needed and runs
+`scripts/install_client.sh --host claude-desktop` for the graphical app (including
+its Code tab), or `--host claude-code` for the terminal CLI. On Windows it uses
+`scripts/install_client.ps1 -HostTarget` with the same host values. The user does
+not have to run these commands, install dependencies or choose a package.
+
+Keep the repository in a durable `code/` directory inside a main project folder.
+Setup binds `LEADGENERATOR_HOME` to the sibling `donnees-privees/`; other checkout
+names use a sibling `<checkout-name>-donnees-privees/`. The SQLite company database,
+profiles, objectives and settings belong to that one private store. Setup does
+not import an old user-global profile. See [storage.md](storage.md) before copying
+an existing installation or choosing another folder.
 
 Open the repository folder as a local project in Claude's graphical **Code** tab,
 start a new conversation, and speak naturally. For example: “Affiche mes objectifs”
 or “Trouve des prospects pour mon objectif”. No package import, special startup
 command or slash command is required for this folder-based workflow.
 
-`CLAUDE.md` at the root tells Claude which workflow to load and how to reuse the
-saved objective/profile. The root `.mcp.json` starts `scripts/claude/project.cjs`,
-which uses the live engine in `plugins/leadgenerator`. `get_lead_workflow` exposes
-the canonical skills without installing a second copy. Local Node and uv are
-required; the existing development setup supplies both.
+The installer registers an absolute uv command pointing to the live
+`plugins/leadgenerator` engine. It prepares uv and the Python dependencies;
+Node is not needed for this recommended workflow. Desktop uses its machine-local
+MCP configuration; the terminal uses the project's `.mcp.json`. The terminal
+setup creates `CLAUDE.md` from the reviewed template when absent and preserves
+customized instructions. `get_lead_workflow` exposes canonical skills without
+installing a second copy.
 
-After adding or changing the MCP configuration, start a **new conversation in
-the same project**. If Claude still keeps the old server inventory, quit Claude
-completely and reopen the same project. A first-use MCP approval may be requested
+After installation, **quit Claude completely and reopen it**, then start a new
+conversation in the same project. A first-use MCP approval may be requested
 by Claude. Do not bypass it or change global permissions.
 
 MCP connection and MCP Apps rendering are separate acceptance checks. The GUI
@@ -32,15 +43,14 @@ instead of making the user perform repeated installation steps.
 Developer connection check: `claude mcp get leadgenerator`. Runtime check:
 `uv run --project plugins/leadgenerator python scripts/verify_claude.py --project .`.
 
-### Native MCP Apps connection (2026-09-11)
+### Native MCP Apps connection
 
-The folder's `CLAUDE.md` now tells Claude to check
-`node scripts/claude/desktop.cjs --status`, then run it with `--install` if missing.
-The user does not run these commands. The helper adds only the `leadgenerator`
-entry to `claude_desktop_config.json`, using an absolute Node path and the same
-project launcher. Existing preferences/connectors are preserved, a byte-for-byte
-private backup is created with owner-only permissions, and a conflicting existing
-registration is never overwritten. No generated package or public URL is involved.
+The installer adds only the `leadgenerator` entry to the selected host's
+configuration. Existing preferences, unrelated connectors and service environment
+values are preserved. A recognized Lead Generator registration can be rebound to
+the selected source folder with a byte-for-byte private backup; an unknown
+connector is never overwritten. Backups that may contain service credentials
+remain machine-local, outside portable business storage.
 
 This registration matters: the Desktop shell negotiates MCP Apps, whereas the
 project's embedded Code-engine connection may not. Desktop's definition takes
@@ -48,11 +58,10 @@ precedence for the same server name in local Code sessions, according to the
 [official desktop reference](https://code.claude.com/docs/en/desktop#mcp-servers-from-the-claude-desktop-chat-app).
 The `.mcp.json` entry remains useful for first-run discovery and the standalone CLI.
 
-After first registration, use the existing Developer menu's Reload MCP
-Configuration action, or quit and reopen Claude once. Enabling developer mode can
-restart the application, so agents must not enable it automatically during other
-active sessions. Do not tell the user to install an extension, choose an output
-build, move to Chat, or switch to text-only mode.
+After registration, ask the user to quit and reopen Claude once. Do not restart
+the application or enable developer mode automatically during active sessions.
+Do not tell the user to install an extension, choose an output build, move to Chat
+or switch to text-only mode as a substitute for configuring the correct host.
 
 ### Actual acceptance check (2026-09-11)
 
@@ -172,8 +181,11 @@ This package needs [uv](https://docs.astral.sh/uv/getting-started/installation/)
 on the machine. Claude supplies Node; the launcher finds uv even when a GUI
 process has a minimal PATH. uv installs the locked Python 3.13 environment on
 first launch. No developer virtualenv is bundled. Internet access is needed for
-that initial install and for public research. PostgreSQL must be running for
-company memory; by default the server uses `postgresql:///leadgenerator`.
+that initial install and for public research. Configure the extension's
+`LEADGENERATOR_HOME` binding to a durable private directory outside the package
+and Git. SQLite stores company memory there by default; no PostgreSQL server is
+required. PostgreSQL is used only with an explicit `LEADGENERATOR_DATABASE_URL`.
+An extension never imports a previous user-global store automatically.
 
 Optional service keys can be entered into the extension's secure configuration;
 leave them empty to test public research. Neither the package nor a Claude chat
@@ -211,17 +223,22 @@ claude --plugin-dir "/absolute/path/from/build-output/leadgenerator"
 
 Invoke `/leadgenerator:leadgenerator`. A terminal cannot render the HTML UI;
 test the visual interface in Claude Desktop. In a terminal, explicitly request
-text-only mode if desired; that preference is shared with Codex on the same home.
+text-only mode if desired; that preference is shared with Codex only when both
+processes are explicitly bound to the same `LEADGENERATOR_HOME`.
 
-Cowork may run plugin tools in a VM. In that case its home, uv installation,
-PostgreSQL access and browser session differ from the Mac's. Installing the plugin
-does not automatically share local profiles or grant VM-to-host database access.
-The local Desktop extension is the recommended first test for existing Mac data.
+Cowork may run plugin tools in a VM. In that case its filesystem, uv installation
+and browser session differ from the Mac's. Configure an accessible private
+directory explicitly in that environment. Installing a plugin does not share
+the Mac's files or grant VM-to-host access to an optional PostgreSQL database.
 
 ## Boundaries retained
 
-- Same OS user and home: reuse `~/.codex/leadgenerator`; no migration or data copy.
-- Another machine or VM: configure its private storage and database separately.
+- Same explicit `LEADGENERATOR_HOME`: reuse that store, not an unrelated global home.
+- Another machine: close the apps, copy the durable parent containing both `code`
+  and `donnees-privees`, rerun setup from the new code path, then reconnect services.
+- VM or external PostgreSQL: provide accessible storage and handle the database
+  backup separately. Copying business files does not copy browser sessions,
+  service credentials, dependencies or host-owned scheduled tasks.
 - LinkedIn account research: use Claude's available browser integration and log
   in there if needed. Codex cookies are never imported. With no browser integration,
   report the connected-research limitation and retain public research.

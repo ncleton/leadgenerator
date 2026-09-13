@@ -56,10 +56,10 @@ def test_website_analysis_is_sourced_from_the_saved_seller_domain(tmp_path: Path
 
     analyzed = record_website_analysis(
         profile,
-        offer_summary="L'entreprise présente une solution de recharge B2B.",
+        offer_summary="L'entreprise présente un service de traduction B2B.",
         source_urls=[
             "https://example.com/",
-            "https://www.example.com/solutions/recharge",
+            "https://www.example.com/services/traduction",
         ],
     )
     save_user_profile(analyzed, tmp_path)

@@ -1,7 +1,6 @@
 """Private user profiles and persistent objective-agent context."""
 
 from leadgenerator.profiles.objectives import (
-    OBJECTIVES_HOME,
     DocumentProvenance,
     Objective,
     ObjectiveAgent,
@@ -31,7 +30,6 @@ from leadgenerator.profiles.objectives import (
 )
 
 __all__ = [
-    "OBJECTIVES_HOME",
     "DocumentProvenance",
     "Objective",
     "ObjectiveAgent",

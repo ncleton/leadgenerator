@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -31,6 +32,8 @@ REQUIRED_GITIGNORE_PATTERNS = {
     "**/lead-research-*/",
     "**/offer-profiles/",
     "**/user-profile.json",
+    "**/donnees-privees/",
+    "**/*-donnees-privees/",
 }
 IGNORED_PROFILE_VALUES = {
     "Hauts-de-France",
@@ -57,8 +60,18 @@ def _leaf_strings(value: Any) -> set[str]:
 
 
 def _load_private_values() -> set[str]:
-    paths = [CODEX_HOME / "leadgenerator" / "user-profile.json"]
-    paths.extend((CODEX_HOME / "leadgenerator" / "offer-profiles").glob("*.json"))
+    # Include legacy data for leak detection only, never for runtime routing.
+    sibling_name = (
+        "donnees-privees"
+        if ROOT.name.casefold() == "code"
+        else f"{ROOT.name}-donnees-privees"
+    )
+    roots = {CODEX_HOME / "leadgenerator", ROOT.parent / sibling_name}
+    if os.environ.get("LEADGENERATOR_HOME"):
+        roots.add(Path(os.environ["LEADGENERATOR_HOME"]))
+    paths = [root / "user-profile.json" for root in roots]
+    for root in roots:
+        paths.extend((root / "offer-profiles").glob("*.json"))
     paths.extend(CODEX_HOME.glob("skills/lead-research-*/references/profile.json"))
     values: set[str] = set()
     for path in paths:
@@ -82,7 +95,12 @@ def _candidate_files() -> list[Path]:
 def main() -> None:
     private_values = _load_private_values()
     violations: list[str] = []
-    forbidden_parts = {"client-data", "client-profiles", "offer-profiles"}
+    forbidden_parts = {
+        "client-data",
+        "client-profiles",
+        "offer-profiles",
+        "donnees-privees",
+    }
     gitignore_lines = {
         line.strip()
         for line in (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
@@ -99,6 +117,7 @@ def main() -> None:
             path.name == "user-profile.json"
             or forbidden_parts.intersection(relative.parts)
             or any(part.startswith("lead-research-") for part in relative.parts)
+            or any(part.endswith("-donnees-privees") for part in relative.parts)
         ):
             violations.append(f"private artifact is publishable: {relative}")
             continue
