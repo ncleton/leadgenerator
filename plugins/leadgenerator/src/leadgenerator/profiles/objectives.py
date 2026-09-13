@@ -25,7 +25,7 @@ from xml.etree import ElementTree
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from leadgenerator.storage import private_path
+from leadgenerator.storage import is_windows_device_name, private_path
 
 STATE_FILENAME = "state.json"
 MAX_ATTACHMENT_BYTES = 50 * 1024 * 1024
@@ -55,6 +55,10 @@ def validate_identifier(value: str, *, label: str = "identifier") -> str:
         )
     if len(value) > 64:
         raise ValueError(f"Invalid {label}: maximum length is 64 characters.")
+    if is_windows_device_name(value):
+        raise ValueError(
+            f"Invalid {label}: Windows-reserved device names are not allowed."
+        )
     return value
 
 
@@ -65,6 +69,8 @@ def objective_slug(value: str) -> str:
     )
     slug = re.sub(r"[^a-z0-9]+", "-", ascii_value.lower()).strip("-")
     slug = slug[:56].rstrip("-")
+    if is_windows_device_name(slug):
+        slug = f"objective-{slug}"
     return validate_identifier(slug or "objective", label="objective_id")
 
 
@@ -205,6 +211,7 @@ class ObjectiveAttachment(StrictModel):
             or ".." in path.parts
             or ":" in normalized
             or "\x00" in normalized
+            or any(is_windows_device_name(part) for part in path.parts)
         ):
             raise ValueError("A safe relative attachment path is required.")
         return path.as_posix()
@@ -499,6 +506,8 @@ def _atomic_json(path: Path, model: BaseModel) -> Path:
 def _safe_filename(name: str) -> str:
     cleaned = unicodedata.normalize("NFKC", Path(name).name)
     cleaned = re.sub(r"[^A-Za-z0-9._-]+", "-", cleaned).strip(".-")
+    if is_windows_device_name(cleaned):
+        cleaned = f"document-{cleaned}"
     return cleaned[:120] or "document"
 
 

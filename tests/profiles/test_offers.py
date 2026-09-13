@@ -1,5 +1,6 @@
 """Tests for private, offer-specific research profiles."""
 
+import os
 from pathlib import Path
 
 import pytest
@@ -9,12 +10,25 @@ from leadgenerator.profiles.migration import (
 )
 from leadgenerator.profiles.objectives import ObjectiveStore
 from leadgenerator.profiles.offers import (
+    ResearchProfile,
     ResearchSignal,
     build_profile,
     load_profiles,
     save_profile,
     slugify,
 )
+
+
+@pytest.fixture
+def synthetic_profile():
+    return build_profile(
+        seller_name="Example Person",
+        seller_company="Example Company",
+        offer_name="Synthetic offer",
+        offer_description="Synthetic offer description",
+        target_companies="Example companies",
+        geography="Example region",
+    )
 
 
 def test_profile_is_saved_as_private_json_without_a_guide(tmp_path: Path):
@@ -70,6 +84,125 @@ def test_profile_identifier_is_stable_without_generating_a_skill():
 
     assert profile.profile_id == "ombrieres"
     assert slugify("Énergie & Mobilité !") == "energie-mobilite"
+
+
+@pytest.mark.parametrize(
+    "name", ["CON", "PRN", "AUX", "NUL", "COM1", "COM9", "LPT1", "LPT9"]
+)
+def test_offer_device_names_get_safe_generated_ids_and_reject_explicit_ids(
+    tmp_path, name
+):
+    profile = build_profile(
+        seller_name="Example Person",
+        seller_company="Example Company",
+        offer_name=name,
+        offer_description="Synthetic offer",
+        target_companies="Example companies",
+        geography="Example region",
+    )
+    assert slugify(name) == f"offre-{name.lower()}"
+    assert profile.profile_id == f"offre-{name.lower()}"
+    path = save_profile(profile, tmp_path)
+    assert path.name == f"offre-{name.lower()}.json"
+    assert load_profiles(tmp_path)[0].offer_name == name
+
+    for identifier in (name.lower(), name, f"{name}.txt"):
+        with pytest.raises(ValueError, match="Windows-reserved"):
+            ResearchProfile.model_validate(
+                profile.model_dump() | {"profile_id": identifier}
+            )
+        with pytest.raises(ValueError, match="Windows-reserved"):
+            save_profile(
+                profile.model_copy(update={"profile_id": identifier}), tmp_path
+            )
+
+
+@pytest.mark.parametrize(
+    "identifier",
+    [
+        "",
+        ".",
+        "..",
+        "../outside",
+        "..\\outside",
+        "folder/CON",
+        "folder\\NUL",
+        "/absolute",
+        "\\absolute",
+        "C:\\absolute",
+        "C:relative",
+        "\\\\server\\share",
+        "profile:stream",
+        "profile.",
+        "profile ",
+        "profile?",
+        "profile*",
+        "profile|",
+        "profile<",
+        "profile>",
+        'profile"',
+        "profile\x00",
+        "profile\n",
+    ],
+)
+def test_offer_ids_cannot_escape_or_alias_the_private_filename(
+    tmp_path, synthetic_profile, identifier
+):
+    private = tmp_path / "profiles"
+    with pytest.raises(ValueError, match="Invalid profile_id"):
+        ResearchProfile.model_validate(
+            synthetic_profile.model_dump() | {"profile_id": identifier}
+        )
+    with pytest.raises(ValueError, match="Invalid profile_id"):
+        save_profile(
+            synthetic_profile.model_copy(update={"profile_id": identifier}), private
+        )
+    assert not private.exists()
+
+
+@pytest.mark.parametrize(
+    "identifier", ["Version.2", "historical-id", "Case_ID", "123", "com10"]
+)
+def test_portable_existing_offer_ids_keep_their_exact_spelling(
+    tmp_path, synthetic_profile, identifier
+):
+    profile = ResearchProfile.model_validate(
+        synthetic_profile.model_dump() | {"profile_id": identifier}
+    )
+    path = save_profile(profile, tmp_path)
+    assert path == tmp_path / f"{identifier}.json"
+    assert load_profiles(tmp_path)[0].profile_id == identifier
+    assert not list(tmp_path.glob(".profile-*"))
+    if os.name == "posix":
+        assert path.stat().st_mode & 0o777 == 0o600
+
+
+@pytest.mark.parametrize("target_exists", [False, True])
+def test_saving_an_offer_never_follows_a_destination_symlink(
+    tmp_path, synthetic_profile, target_exists
+):
+    private = tmp_path / "profiles"
+    private.mkdir()
+    target = tmp_path / "outside.json"
+    original = b"Synthetic outside data"
+    if target_exists:
+        target.write_bytes(original)
+    destination = private / f"{synthetic_profile.profile_id}.json"
+    try:
+        destination.symlink_to(target)
+    except OSError as error:
+        if os.name == "nt" and getattr(error, "winerror", None) == 1314:
+            pytest.skip("This Windows account cannot create symbolic links.")
+        raise
+
+    with pytest.raises(ValueError, match="symlink"):
+        save_profile(synthetic_profile, private)
+
+    assert destination.is_symlink()
+    assert target.exists() is target_exists
+    if target_exists:
+        assert target.read_bytes() == original
+    assert not list(private.glob(".profile-*"))
 
 
 def test_saving_same_offer_creates_a_new_profile_version(tmp_path: Path):

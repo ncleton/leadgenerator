@@ -15,7 +15,9 @@ from leadgenerator.profiles.objectives import (
     ObjectiveExample,
     ObjectiveStore,
     OutputContract,
+    _safe_filename,
     extract_document_text,
+    objective_slug,
     render_objective_agent_prompt,
     validate_identifier,
 )
@@ -121,6 +123,61 @@ def test_identifiers_cannot_escape_or_alias_storage(identifier: str):
         validate_identifier(identifier)
 
 
+@pytest.mark.parametrize(
+    "device",
+    [
+        "CON",
+        "PRN",
+        "AUX",
+        "NUL",
+        *[f"{prefix}{number}" for prefix in ("COM", "LPT") for number in range(1, 10)],
+    ],
+)
+def test_windows_device_names_are_neutralized_for_generated_names(device: str):
+    assert objective_slug(device) == f"objective-{device.lower()}"
+    assert _safe_filename(f"{device}.txt") == f"document-{device}.txt"
+    assert (
+        _safe_filename(f"{device.lower()}.report.md")
+        == f"document-{device.lower()}.report.md"
+    )
+    with pytest.raises(ValueError, match="Windows-reserved"):
+        validate_identifier(device.lower())
+
+
+@pytest.mark.parametrize("name", ["console", "auxiliary", "com10", "lpt0", "nul-offer"])
+def test_similar_non_device_names_are_not_changed(name: str):
+    assert objective_slug(name) == name
+    assert validate_identifier(name) == name
+    assert _safe_filename(f"{name}.txt") == f"{name}.txt"
+
+
+def test_reserved_display_names_keep_their_content_in_portable_paths(tmp_path: Path):
+    store = ObjectiveStore(tmp_path / "objectives")
+    objective, _agent = store.create(
+        name="CON",
+        description="Synthetic objective",
+        instructions="Use public evidence.",
+    )
+    attachment = store.add_attachment_bytes(
+        objective.objective_id, "NUL.md", b"Synthetic context."
+    )
+    assert objective.name == "CON"
+    assert objective.objective_id == "objective-con"
+    assert attachment.original_name == "NUL.md"
+    assert attachment.stored_path.endswith("/document-NUL.md")
+    assert (
+        store.read_attachment_text(objective.objective_id, attachment.attachment_id)
+        == "Synthetic context."
+    )
+    with pytest.raises(ValueError, match="Windows-reserved"):
+        store.create(
+            objective_id="con",
+            name="Synthetic",
+            description="Synthetic objective",
+            instructions="Use public evidence.",
+        )
+
+
 def test_persisted_models_reject_unknown_fields(tmp_path: Path):
     store, objective, _ = _store_with_objective(tmp_path)
     path = store.home / objective.objective_id / "objective.json"
@@ -223,6 +280,8 @@ def test_copied_legacy_windows_attachment_metadata_is_normalized_without_rewriti
         "C:outside.txt",
         "\\\\server\\share\\outside.txt",
         "attachments/document/extracted.txt:stream",
+        "attachments/document/CON.txt",
+        "attachments\\document\\lpt9.md",
     ],
 )
 def test_legacy_path_normalization_rejects_traversal_and_windows_drives(

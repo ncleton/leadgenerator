@@ -5,14 +5,32 @@ from __future__ import annotations
 import json
 import os
 import re
+import tempfile
 import unicodedata
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from leadgenerator.storage import private_path
+from leadgenerator.storage import is_windows_device_name, private_path
+
+
+def _validate_profile_id(value: str) -> str:
+    if (
+        not value
+        or value in {".", ".."}
+        or value != value.rstrip(" .")
+        or any(character in '<>:"/\\|?*' or ord(character) < 32 for character in value)
+    ):
+        raise ValueError(
+            "Invalid profile_id: use one portable filename without a path."
+        )
+    if is_windows_device_name(value):
+        raise ValueError(
+            "Invalid profile_id: Windows-reserved device names are not allowed."
+        )
+    return value
 
 
 class StrictModel(BaseModel):
@@ -61,6 +79,11 @@ class ResearchProfile(StrictModel):
     version: int = 1
     updated_at: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
 
+    @field_validator("profile_id")
+    @classmethod
+    def _valid_profile_id(cls, value: str) -> str:
+        return _validate_profile_id(value)
+
 
 def slugify(value: str) -> str:
     """Create a conservative identifier for profile folders and skill names."""
@@ -68,7 +91,8 @@ def slugify(value: str) -> str:
         unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode()
     )
     slug = re.sub(r"[^a-z0-9]+", "-", ascii_value.lower()).strip("-")
-    return slug[:42].rstrip("-") or "offre"
+    slug = slug[:42].rstrip("-") or "offre"
+    return f"offre-{slug}" if is_windows_device_name(slug) else slug
 
 
 def build_profile(
@@ -119,11 +143,14 @@ def save_profile(
     profile_home: Path | None = None,
 ) -> Path:
     """Persist one private profile without generating a shareable guide."""
+    _validate_profile_id(profile.profile_id)
     profile_home = (
         profile_home if profile_home is not None else private_path("offer-profiles")
     )
     profile_home.mkdir(parents=True, exist_ok=True)
     path = profile_home / f"{profile.profile_id}.json"
+    if path.is_symlink():
+        raise ValueError("A profile destination cannot be a symlink.")
     if path.exists():
         existing = ResearchProfile.model_validate_json(path.read_text(encoding="utf-8"))
         if profile.version <= existing.version:
@@ -133,12 +160,18 @@ def save_profile(
                     "updated_at": datetime.now(UTC).isoformat(),
                 }
             )
-    path.write_text(
-        json.dumps(profile.model_dump(), ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
-    if os.name != "nt":
-        path.chmod(0o600)
+    # Replace the directory entry atomically rather than opening the destination
+    # for writing. A concurrently replaced link must never redirect the write.
+    fd, temporary_name = tempfile.mkstemp(prefix=".profile-", dir=profile_home)
+    temporary = Path(temporary_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            json.dump(profile.model_dump(), handle, ensure_ascii=False, indent=2)
+        if path.is_symlink():
+            raise ValueError("A profile destination cannot be a symlink.")
+        temporary.replace(path)
+    finally:
+        temporary.unlink(missing_ok=True)
     return path
 
 

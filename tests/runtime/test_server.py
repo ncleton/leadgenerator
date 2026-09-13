@@ -79,7 +79,7 @@ from leadgenerator.ui.workspace import (
 )
 from mcp.server.mcpserver.exceptions import ResourceError, ToolError
 from mcp.types import CallToolResult
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import expect, sync_playwright
 
 TEST_OBJECTIVE_ID = "test-objective"
 
@@ -1292,6 +1292,7 @@ def test_explorer_offers_satellite_imagery_separate_from_the_plan():
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=True)
         page = browser.new_page(viewport={"width": 900, "height": 820})
+        page.route("https://**/*", lambda route: route.abort())
         page.set_content(LEAD_EXPLORER_HTML, wait_until="domcontentloaded")
         page.evaluate(
             """payload => window.dispatchEvent(new CustomEvent("openai:set_globals", {
@@ -1305,13 +1306,15 @@ def test_explorer_offers_satellite_imagery_separate_from_the_plan():
         assert "LAYER=GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2" in plan_url
         page.get_by_role("button", name="Satellite").click()
 
-        assert page.get_by_label("Vue satellite des bâtiments et parkings").is_visible()
-        assert page.get_by_text("Satellite · Photos aériennes IGN").is_visible()
-        assert (
-            page.locator("#street-map")
-            .get_by_role("button", name="Voir Lille Example")
-            .is_visible()
-        )
+        expect(
+            page.get_by_label("Vue satellite des bâtiments et parkings")
+        ).to_be_visible()
+        expect(page.get_by_text("Satellite · Photos aériennes IGN")).to_be_visible()
+        # Switching tabs exposes the container immediately, but marker rendering
+        # runs in a later task. Wait for the observable result, not a fixed delay.
+        expect(
+            page.locator("#street-map").get_by_role("button", name="Voir Lille Example")
+        ).to_be_visible()
         tile_url = page.locator("#street-map .tile").first.get_attribute("src")
         assert tile_url is not None
         assert tile_url.startswith("https://data.geopf.fr/wmts?")

@@ -10,6 +10,16 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+WINDOWS_DEVICE_NAMES = frozenset(
+    {"con", "prn", "aux", "nul"}
+    | {f"{prefix}{number}" for prefix in ("com", "lpt") for number in range(1, 10)}
+)
+
+
+def is_windows_device_name(name: str) -> bool:
+    """Identify device basenames that remain reserved even with an extension."""
+    return name.split(".", 1)[0].rstrip(" ").casefold() in WINDOWS_DEVICE_NAMES
+
 
 class StorageConfigurationError(ValueError):
     """The private data directory is missing or crosses a privacy boundary."""
