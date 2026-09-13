@@ -10,7 +10,199 @@
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-142927?style=flat-square" alt="Licence MIT"></a>
   </p>
 
-  <p>
+</div>
+
+Lead Generator est un assistant de prospection B2B créé par **Yaka Performance**.
+Il vous aide à trouver des entreprises françaises, comprendre leur activité,
+repérer des projets pertinents et identifier les bons interlocuteurs.
+
+Il s'utilise dans une conversation avec **Codex ou Claude**. Vous décrivez votre
+besoin, l'agent mène la recherche et vous présente des fiches avec leurs sources.
+Vous choisissez les entreprises à approfondir et les actions à effectuer.
+
+## Comment ça fonctionne
+
+1. **Définissez votre objectif.** Indiquez ce que vous vendez, à qui et dans quelle
+   zone. L'agent vous demande le site de votre entreprise pour comprendre votre
+   offre. Vous pouvez ajouter des documents, des consignes et des rôles à cibler.
+2. **Lancez une recherche.** Précisez le secteur, la taille des entreprises, la
+   localisation et le nombre de résultats souhaité. L'agent consulte le registre
+   officiel des entreprises et recherche des informations sur leurs sites et
+   dans des sources professionnelles.
+3. **Examinez les résultats.** Parcourez les entreprises sur une carte ou dans une
+   liste. Chaque fiche distingue les informations vérifiées, les hypothèses
+   commerciales et les éléments qu'il reste à confirmer.
+4. **Approfondissez votre sélection.** Demandez une analyse de l'entreprise, de
+   son actualité ou de ses décideurs. L'agent classe les contacts selon votre
+   objectif et peut préparer un message de prospection à relire.
+5. **Validez la suite.** Vous décidez de rechercher des coordonnées professionnelles
+   ou de transmettre les contacts retenus à HubSpot. L'agent n'envoie aucun
+   message de prospection.
+
+## Ce que vous pouvez consulter
+
+- **Entreprises** : activité, taille, établissements, actualités et signaux
+  commerciaux, avec des liens vers les sources.
+- **Carte et satellite** : localisation des entreprises ou des sites étudiés.
+  Une position approximative est signalée comme telle ; elle ne prouve pas
+  l'emplacement exact d'un bâtiment.
+- **Contacts** : interlocuteurs proposés, fonction, éléments de vérification et
+  pertinence pour votre objectif.
+- **Visuels** : logo, photos et vue aérienne lorsque des sources utilisables sont
+  disponibles.
+
+L'agent ne garantit pas qu'une recherche fournira le nombre demandé de prospects
+pertinents, ni qu'une coordonnée sera disponible. Les informations manquantes
+doivent être signalées, jamais inventées.
+
+## Objectifs et réglages
+
+Un objectif regroupe une offre, une cible, une zone et des consignes de recherche.
+Vous pouvez en créer plusieurs pour séparer vos activités ou campagnes.
+
+Demandez **« Ouvre mes objectifs »** pour les consulter ou les modifier, et
+**« Ouvre les réglages »** pour ajuster les préférences. Vous pouvez notamment
+changer le nombre de résultats souhaité et choisir une présentation visuelle
+ou une réponse en texte avec les liens sources.
+
+Dans Codex, vous pouvez planifier des recherches par objectif. La planification
+doit être activée et confirmée ; l'ordinateur doit rester allumé avec Codex
+ouvert. Ces planifications sont consultables, mais pas modifiables, dans Claude.
+[Comprendre les recherches planifiées](docs/objective-scheduling.md).
+
+## Services complémentaires
+
+La recherche d'entreprises et l'analyse de sources publiques ne nécessitent
+pas de service d'enrichissement payant.
+
+- **Réseaux sociaux** : l'agent peut consulter des profils et publications
+  professionnels sur LinkedIn, X, Reddit, Facebook et Instagram avec les
+  connexions compatibles. L'utilisation d'une session connectée nécessite votre
+  accord. Vous vous identifiez directement dans le navigateur, jamais dans la
+  conversation. [Configurer les connexions](docs/social-connectors.md).
+- **Enrow et FullEnrich** : ces services recherchent un e-mail ou un téléphone
+  professionnel pour un contact dont l'identité a été vérifiée. Enrow est utilisé
+  en premier ; FullEnrich peut compléter les champs manquants. Chaque appel
+  payant, y compris le recours à FullEnrich, exige votre confirmation.
+- **HubSpot** : l'agent prépare l'ajout des contacts sélectionnés à une liste et
+  leur attribution à un responsable. Vous vérifiez l'aperçu et confirmez avant
+  toute écriture dans le CRM.
+
+## Installer dans Codex
+
+### Mac ou Linux
+
+Installez [Codex](https://developers.openai.com/codex/),
+[uv](https://docs.astral.sh/uv/) et Git, puis exécutez :
+
+```bash
+git clone https://github.com/ncleton/leadgenerator.git
+cd leadgenerator
+./scripts/install_client.sh
+```
+
+### Windows
+
+Téléchargez le projet avec **Code → Download ZIP**, décompressez-le, puis
+double-cliquez sur `scripts\install_client.cmd`.
+
+L'installateur prend en charge les prérequis et vérifie le fonctionnement de
+l'agent. Vous pouvez aussi utiliser PowerShell avec Git installé :
+
+```powershell
+git clone https://github.com/ncleton/leadgenerator.git
+Set-Location leadgenerator
+.\scripts\install_client.ps1
+```
+
+### Première utilisation
+
+Après l'installation, **quittez complètement Codex puis relancez-le**.
+Ouvrez une nouvelle conversation et demandez :
+
+> Utilise Lead Generator et aide-moi à définir mon objectif de prospection.
+
+Une fois votre offre et votre cible définies, demandez une recherche.
+Une connexion Internet est nécessaire. PostgreSQL est facultatif pour commencer,
+mais nécessaire pour conserver l'historique des entreprises.
+
+## Installer dans Claude
+
+Pour utiliser le projet dans l'onglet **Code** de Claude Desktop, installez
+Git, Node.js et [uv](https://docs.astral.sh/uv/), puis exécutez :
+
+```bash
+git clone https://github.com/ncleton/leadgenerator.git
+cd leadgenerator
+node scripts/claude/setup.cjs
+```
+
+Ouvrez ce dossier comme projet local dans Claude et demandez :
+
+> Utilise Lead Generator et aide-moi à définir mon objectif de prospection.
+
+Claude prépare la connexion au moteur. Acceptez les autorisations demandées par
+l'application et redémarrez-la si nécessaire. Le script de préparation ne remplace
+pas vos fichiers de configuration personnalisés.
+
+L'affichage visuel dépend des capacités de votre version de Claude. Dans un
+terminal, utilisez le mode texte.
+Le [guide Claude](docs/claude-installation.md) détaille les prérequis, les formats
+d'installation et les limites de chaque environnement.
+
+## Données et confidentialité
+
+Vos objectifs, documents, réglages et clés de services sont conservés localement.
+Ils ne sont pas inclus dans le dépôt GitHub et ne sont pas transférés
+automatiquement lorsque vous installez l'agent sur un autre ordinateur.
+
+La mémoire des entreprises utilise une base PostgreSQL locale. Elle permet de
+retrouver les fiches, de conserver leur historique et d'éviter de reproposer
+les entreprises déjà étudiées. Si PostgreSQL est installé, créez la base avec :
+
+```bash
+createdb leadgenerator
+```
+
+Une autre base peut être configurée avec `LEADGENERATOR_DATABASE_URL`.
+Les profils sont stockés sous `~/.codex/leadgenerator/` ; les exports privés
+du projet sont placés dans `.agent-private/`.
+
+Le stockage local ne signifie pas que la recherche est hors ligne : les sites
+consultés et les services utilisés reçoivent les requêtes nécessaires. Ne
+partagez pas de secrets dans vos demandes ni dans les fichiers destinés à GitHub.
+
+## Aide et documentation
+
+- [Assistance et signalement de problèmes](SUPPORT.md)
+- [Sécurité et validation humaine](docs/safety.md)
+- [Signaler une vulnérabilité](SECURITY.md)
+- [Personnaliser l'interface](docs/ui-customization.md)
+- [Documentation Claude](docs/claude-installation.md)
+
+## Pour les développeurs
+
+Le moteur est écrit en Python 3.13. Il expose ses outils et son interface à Codex
+et Claude via MCP, un protocole de connexion entre assistants et outils.
+
+`plugins/leadgenerator/` contient le moteur et les consignes de l'agent,
+`tests/` les tests, `scripts/` les commandes d'installation et de validation,
+et `docs/` la documentation technique.
+
+```bash
+uv sync --project plugins/leadgenerator --frozen
+uv run --project plugins/leadgenerator playwright install chromium
+./scripts/validate.sh
+```
+
+Consultez les [règles de contribution](CONTRIBUTING.md),
+l'[architecture](docs/architecture.md), le [SDK](docs/plugin-sdk.md) et
+le [changelog](CHANGELOG.md). Le projet est distribué sous [licence MIT](LICENSE).
+
+<details>
+<summary>Technologies et intégrations</summary>
+
+<p>
     <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.13-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.13"></a>
     <a href="https://docs.astral.sh/uv/"><img src="https://img.shields.io/badge/uv-locked-DE5FE9?style=for-the-badge&logo=uv&logoColor=white" alt="uv"></a>
     <a href="https://developers.openai.com/codex/"><img src="https://img.shields.io/badge/Codex-ready-000000?style=for-the-badge&logo=openai&logoColor=white" alt="Codex"></a>
@@ -31,243 +223,5 @@
     <a href="https://fullenrich.com/"><img src="https://img.shields.io/badge/FullEnrich-confirmed_fallback-635BFF?style=flat-square" alt="FullEnrich contact enrichment"></a>
     <a href="https://developers.hubspot.com/"><img src="https://img.shields.io/badge/HubSpot-confirmed_writes-FF7A59?style=flat-square&logo=hubspot&logoColor=white" alt="HubSpot"></a>
   </p>
-</div>
 
-Lead Generator, par **Yaka Performance**, est un agent Codex et Claude de recherche commerciale B2B avec validation
-humaine. Il transforme une cible en recherche d'entreprises françaises, rassemble
-des preuves publiques et identifie des décideurs. Chaque objectif possède son
-agent persistant, ses consignes, exemples, rôles cibles et documents privés.
-Lead Generator garde le bon objectif et demande lequel utiliser en cas
-d'ambiguïté. Il fonctionne avec une interface visuelle ou en mode texte. Toute
-recherche payante ou écriture HubSpot nécessite votre accord. Les entreprises
-déjà étudiées sont mémorisées localement dans PostgreSQL, jamais dans Git.
-
-## Tester dans Claude
-
-Les connecteurs sociaux en lecture seule restent disponibles sur accord explicite :
-voir [les connecteurs sociaux](docs/social-connectors.md).
-
-La distribution Claude partage le même moteur et la même interface MCP Apps.
-Après le clonage, avec Node.js installé, préparez une fois les fichiers locaux :
-
-```bash
-node scripts/claude/setup.cjs
-```
-
-Les modèles partagés sont dans `scripts/claude/templates/` ; la commande ne
-remplace jamais une configuration personnalisée. Ouvrez ensuite ce dossier
-comme projet local dans l'onglet **Code** de Claude, créez une
-nouvelle conversation et parlez normalement. Le `CLAUDE.md` à la racine guide
-Claude pour enregistrer automatiquement le moteur auprès de Desktop, qui fournit
-le rendu MCP Apps à Code. Le `.mcp.json` seul ne suffit pas sur certaines versions.
-Aucune extension à choisir ni commande à exécuter : si un rechargement est
-nécessaire au premier branchement, Claude demande simplement de quitter puis
-rouvrir l'application une fois. Le panneau natif et le retour d'un bouton vers
-la conversation ont été vérifiés dans Code sur macOS le 11 septembre 2026.
-
-Commencez par « Utilise Lead Generator et affiche mes objectifs sans lancer de
-recherche ». Les planifications Codex restent en lecture seule dans Claude.
-Voir le [guide d'installation et de test Claude](docs/claude-installation.md) pour
-les prérequis, les limites des sessions en VM et le mode terminal.
-
-## Démarrage rapide dans Codex
-
-Prérequis sur macOS et Linux : [Codex](https://developers.openai.com/codex/),
-[`uv`](https://docs.astral.sh/uv/) et une connexion Internet. Sous Windows,
-l'installateur prend aussi en charge l'installation ou la mise à niveau de Codex,
-de `uv` et de Python 3.13.
-
-```bash
-git clone https://github.com/ncleton/leadgenerator.git
-cd leadgenerator
-./scripts/install_client.sh
-```
-
-L'installateur met à jour Codex si nécessaire, installe le plugin, puis lance un
-vrai échange MCP isolé : découverte des outils, recherche dans le registre
-officiel, routage d'un objectif, rendu de l'explorateur et lecture de sa ressource
-HTML. Il se termine uniquement lorsque le résultat JSON contient `"status":
-"ok"`.
-
-Quitter ensuite complètement l'application ChatGPT/Codex, la relancer et demander
-« Trouve-moi des industriels dans le département du Nord et affiche le parcours
-Lead Generator. » Le succès visible est une recherche sourcée suivie de
-l'explorateur MCP interactif. PostgreSQL est facultatif pour ce premier parcours.
-
-## Enrichissement des contacts avec Enrow et FullEnrich
-
-Lead Generator enrichit uniquement un contact professionnel dont l'identité a
-été vérifiée. La cascade recherche l'**e-mail professionnel** et, lorsque les
-conditions du fournisseur sont remplies, le **téléphone professionnel** :
-
-1. **Enrow passe en premier**, car il constitue la source prioritaire et la moins
-   coûteuse pour la recherche demandée.
-2. **FullEnrich intervient en recours** seulement lorsqu'Enrow a terminé sans
-   trouver le champ demandé, afin d'améliorer la couverture et la recherche de
-   mobile.
-3. Chaque appel payant exige une **confirmation humaine explicite**. Le recours à
-   FullEnrich fait l'objet d'une seconde confirmation ciblée sur les données
-   encore manquantes.
-
-Les résultats restent rattachés à l'identité professionnelle et à leurs preuves.
-Lead Generator n'invente aucune coordonnée et ne contacte jamais la personne
-automatiquement.
-
-## Structure du dépôt
-
-```text
-.
-├── .agents/plugins/marketplace.json   # catalogue local Codex
-├── plugins/leadgenerator/             # plugin distribuable autonome
-│   ├── .codex-plugin/plugin.json      # manifeste officiel du plugin
-│   ├── .mcp.json                      # serveur MCP lancé par Codex
-│   ├── skills/                        # instructions conversationnelles
-│   ├── src/leadgenerator/             # code Python du runtime
-│   ├── pyproject.toml                 # dépendances et outils de qualité
-│   └── uv.lock                        # versions Python reproductibles
-├── tests/                             # miroir des responsabilités du runtime
-├── docs/                              # architecture, sécurité et attribution
-└── scripts/                           # installation client uniquement
-```
-
-Consulter [docs/file-map.md](docs/file-map.md) pour expliquer le rôle de chaque
-famille de fichiers pendant une formation.
-
-## Installation détaillée
-
-Sur Windows PowerShell, le parcours équivalent est :
-
-```powershell
-git clone https://github.com/ncleton/leadgenerator.git
-Set-Location leadgenerator
-.\scripts\install_client.ps1
-```
-
-Pour une installation guidée sans commande PowerShell, télécharger puis extraire
-le ZIP du projet et double-cliquer sur `scripts\install_client.cmd`. Ce lanceur
-contourne uniquement la politique d'exécution pour le script local fourni, puis :
-
-1. installe `uv` et Codex avec leurs installateurs officiels s'ils sont absents ;
-2. télécharge automatiquement Python 3.13 et Chromium ;
-3. installe le plugin avec un runtime propre à la machine ;
-4. enregistre le chemin absolu de `uv` pour que Codex Desktop ne dépende pas d'un
-   ancien `PATH` Windows ;
-5. exécute le test MCP réel avant d'annoncer le succès.
-
-Le script est relançable : une erreur réseau ou un fichier momentanément verrouillé
-n'efface ni les profils ni les objectifs locaux. En cas d'échec, la dernière étape
-affichée donne le diagnostic à transmettre au support.
-
-Quitter complètement l'application ChatGPT/Codex après l'installation, puis la
-relancer. Une application déjà ouverte conserve son ancien inventaire de plugins ;
-ouvrir seulement un nouvel onglet ou une nouvelle tâche ne suffit pas. Ouvrir
-ensuite une nouvelle tâche et demander : « Trouve-moi des industriels
-dans le département du Nord et affiche le parcours Lead Generator. » Si aucun objectif n'est
-encore configuré ou pertinent, l'agent demande simplement ce que vous vendez,
-sans afficher d'anciens objectifs sans rapport. Une réponse claire crée directement
-le nouvel objectif. L'agent demande ensuite, une seule fois, le site Internet du
-vendeur. Il lit la page d'accueil et les pages d'offre pertinentes, puis enregistre
-une synthèse sourcée avant de proposer un ciblage. Enregistrer l'URL seule ne suffit
-pas et aucune recherche de leads n'est lancée avant cette analyse. En mode interface
-(activé par défaut),
-la recherche s'achève par un vrai rendu de l'explorateur MCP dans la conversation.
-
-### Mémoire privée PostgreSQL
-
-Par défaut, Lead Generator essaie d'utiliser la base locale `leadgenerator` via
-le socket Unix. La recherche reste fonctionnelle avec un avertissement explicite
-si PostgreSQL ou cette base ne sont pas disponibles. Pour activer la mémoire,
-créer la base avant le premier lancement avec :
-
-```bash
-createdb leadgenerator
-```
-
-Une autre instance peut être sélectionnée avec `LEADGENERATOR_DATABASE_URL`.
-Cette valeur reste un secret local. Les tables sont créées automatiquement et
-chaque mise à jour d'une entreprise produit un snapshot immuable. La déduplication
-utilise d'abord le SIREN, puis le domaine officiel et enfin une empreinte de
-secours ; les entreprises déjà connues sont exclues par défaut des nouvelles
-sélections. Toute nouvelle recherche ou actualisation persistante exige un
-objectif actif ; son identifiant est conservé dans la fiche, dans la relation
-cumulative de l'entreprise et dans chaque snapshot.
-
-La commande « Affiche la mémoire dans le dossier privé » génère un miroir lisible
-dans `.agent-private/leadgenerator/database/` : un index, une fiche `current.json`
-et un historique `history.jsonl` par entreprise. Ce miroir reste hors Git ;
-PostgreSQL demeure la source principale.
-
-### Objectifs et préférences locales
-
-Les objectifs sont conservés dans `~/.codex/leadgenerator/objectives/`. Les anciens
-profils d'offre peuvent être migrés sans suppression avec la commande
-conversationnelle « Migre mes profils d'offre en agents d'objectif ». Les PDF,
-DOCX, fichiers texte, Markdown, JSON, CSV et HTML joints à un objectif sont
-copiés, hachés et traités comme des preuves non fiables.
-
-Demandez « Ouvre mes objectifs » pour afficher l'interface dédiée : modification
-manuelle de la cible, de la zone, des consignes, des exemples, des rôles et du
-contexte, ajout de documents et de notes. Si plusieurs objectifs existent et
-qu'une recherche ne permet pas de choisir, l'agent propose les objectifs enregistrés.
-
-Dans **Réglages → Planification par objectif**, choisissez une fréquence, une
-heure locale, un fuseau et un volume. Le formulaire propose 9 h chaque jour par
-défaut. L'activation est reliée à une véritable automatisation Codex et son statut
-reste en attente jusqu'à confirmation par Codex. Les recherches suivantes relisent
-les dernières consignes et les documents. Le Mac doit être allumé et Codex ouvert.
-Voir [le fonctionnement des planifications](docs/objective-scheduling.md).
-
-Le mode interface est activé par défaut pour conserver l'expérience existante.
-Il se change directement dans la conversation, par exemple : « Désactive les
-interfaces Lead Generator » ou « Réactive le mode interface ». Le choix est conservé
-localement dans `~/.codex/leadgenerator/preferences.json`. En mode texte, les
-ressources d'interface sont inaccessibles et les résultats gardent leurs liens
-sources.
-
-## Développement
-
-```bash
-uv sync --project plugins/leadgenerator --frozen
-uv run --project plugins/leadgenerator playwright install chromium
-./scripts/validate.sh
-```
-
-## Principes produit
-
-- sources professionnelles publiques ou sessions sociales locales explicitement
-  approuvées, avec provenance conservée ;
-- faits observés, preuves et hypothèses toujours séparés ;
-- aucune donnée personnelle inventée ni contournement d'accès ;
-- aucune prospection envoyée automatiquement ;
-- confirmation humaine au point exact d'une dépense ou d'une écriture CRM ;
-- profils et secrets conservés hors du plugin partagé ;
-- relation durable 1:1 entre objectif et agent, sans mélange de contexte ;
-- fiches et versions d'entreprises conservées dans PostgreSQL local, retrouvables
-  par nom, SIREN ou domaine, avec export JSON exclusivement privé ;
-- cascade Enrow puis FullEnrich liée à l'identité et confirmée par étape ;
-- association HubSpot contact-entreprise vérifiée par domaine ou SIREN ;
-- préférence d'interface locale, réversible et appliquée côté serveur ;
-- aucun nom, entreprise, site ou critère client dans un guide partageable.
-
-## Documentation
-
-- [Architecture](docs/architecture.md)
-- [Architecture modulaire](docs/modular-architecture.md)
-- [SDK des plugins](docs/plugin-sdk.md)
-- [Personnalisation de l’interface](docs/ui-customization.md)
-- [Migration et rollback](docs/migrations.md)
-- [Catalogue des composants](docs/component-catalog.md)
-- [Compatibilité](docs/compatibility.md)
-- [Dépannage modulaire](docs/troubleshooting-modular.md)
-- [Carte des fichiers](docs/file-map.md)
-- [Sécurité et validation humaine](docs/safety.md)
-
-## Sécurité, support et maintenance
-
-Ne publiez jamais de clé API, profil vendeur, donnée client, export de leads
-ou session de navigateur. Consultez [SECURITY.md](SECURITY.md) pour signaler une
-vulnérabilité et [SUPPORT.md](SUPPORT.md) pour demander de l'aide.
-
-Le projet suit le versionnage sémantique. Les changements sont documentés dans
-[CHANGELOG.md](CHANGELOG.md). Les dépendances sont suivies par Dependabot et toute
-modification doit passer les contrôles CI et confidentialité avant fusion.
+</details>
