@@ -20,6 +20,7 @@ def register(code_root: Path, codex_command: str, *, run=subprocess.run) -> None
             check=True,
             capture_output=True,
             text=True,
+            encoding="utf-8",
         )
 
     listing = json.loads(invoke("list", "--json").stdout)

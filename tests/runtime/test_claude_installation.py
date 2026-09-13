@@ -49,7 +49,9 @@ def test_code_registration_binds_private_sibling_and_is_idempotent(
 ):
     code, uv, _ = workspace
     first = installer.configure_claude(code, uv)
-    config = json.loads((code / ".mcp.json").read_text())["mcpServers"]["leadgenerator"]
+    config = json.loads((code / ".mcp.json").read_text(encoding="utf-8"))["mcpServers"][
+        "leadgenerator"
+    ]
     assert first["changed"] and first["restart_required"]
     assert first["instructions_created"]
     assert first["existing_objectives"] == 0
@@ -69,23 +71,25 @@ def test_code_registration_binds_private_sibling_and_is_idempotent(
 def test_code_keeps_custom_instructions_and_unrelated_servers(installer, workspace):
     code, uv, machine_home = workspace
     custom = "# Custom local instructions\nKeep this text.\n"
-    (code / "CLAUDE.md").write_text(custom)
-    template = json.loads((code / "scripts/claude/templates/.mcp.json").read_text())
+    (code / "CLAUDE.md").write_text(custom, encoding="utf-8")
+    template = json.loads(
+        (code / "scripts/claude/templates/.mcp.json").read_text(encoding="utf-8")
+    )
     template["mcpServers"]["other-server"] = {"command": "synthetic-other"}
     template["mcpServers"]["leadgenerator"]["env"] = {"SYNTHETIC_SETTING": "preserved"}
     template["mcpServers"]["leadgenerator"]["cwd"] = "/synthetic/old-location"
     template["other-setting"] = "preserved"
-    (code / ".mcp.json").write_text(json.dumps(template))
+    (code / ".mcp.json").write_text(json.dumps(template), encoding="utf-8")
     before = (code / ".mcp.json").read_bytes()
     result = installer.configure_claude(code, uv)
-    after = json.loads((code / ".mcp.json").read_text())
+    after = json.loads((code / ".mcp.json").read_text(encoding="utf-8"))
     assert after["mcpServers"]["other-server"] == {"command": "synthetic-other"}
     assert after["other-setting"] == "preserved"
     assert (
         after["mcpServers"]["leadgenerator"]["env"]["SYNTHETIC_SETTING"] == "preserved"
     )
     assert "cwd" not in after["mcpServers"]["leadgenerator"]
-    assert (code / "CLAUDE.md").read_text() == custom
+    assert (code / "CLAUDE.md").read_text(encoding="utf-8") == custom
     assert result["private_backup_created"]
     backups = list(
         (machine_home / ".claude/leadgenerator/config-backups").glob("*.json")
@@ -111,11 +115,11 @@ def test_desktop_rebinds_known_launcher_preserving_other_keys(
         },
         "preferences": {"unchanged": True},
     }
-    config.write_text(json.dumps(original))
+    config.write_text(json.dumps(original), encoding="utf-8")
     result = installer.configure_claude(
         code, uv, host="claude-desktop", config_path=config
     )
-    after = json.loads(config.read_text())
+    after = json.loads(config.read_text(encoding="utf-8"))
     assert result["previous_binding_changed"] and result["private_backup_created"]
     assert after["preferences"] == original["preferences"]
     assert after["mcpServers"]["other"] == original["mcpServers"]["other"]
@@ -134,7 +138,7 @@ def test_copied_code_rebinds_without_losing_private_files(
     installer.configure_claude(code, uv)
     original = code.parent / "donnees-privees/objectives/synthetic/objective.json"
     original.parent.mkdir(parents=True)
-    original.write_text('{"objective_id":"synthetic"}')
+    original.write_text('{"objective_id":"synthetic"}', encoding="utf-8")
     copied = tmp_path / "copied"
     shutil.copytree(code.parent, copied)
     result = installer.configure_claude(copied / "code", uv)
@@ -156,7 +160,9 @@ def test_copied_code_rebinds_without_losing_private_files(
 def test_unknown_connector_is_not_overwritten(installer, workspace, entry):
     code, uv, _ = workspace
     config = code / ".mcp.json"
-    config.write_text(json.dumps({"mcpServers": {"leadgenerator": entry}}))
+    config.write_text(
+        json.dumps({"mcpServers": {"leadgenerator": entry}}), encoding="utf-8"
+    )
     before = config.read_bytes()
     with pytest.raises(ValueError, match="different Lead Generator connector"):
         installer.configure_claude(code, uv)
@@ -189,14 +195,21 @@ def test_symlink_source_and_config_are_rejected(installer, workspace, tmp_path):
         installer.configure_claude(code, uv)
 
 
-def test_old_windows_registration_is_recognized_on_another_platform(installer):
+@pytest.mark.parametrize(
+    ("command", "package"),
+    [
+        (r"C:\tools\uv.exe", r"C:\old\code\plugins\leadgenerator"),
+        ("/synthetic/bin/uv", "/synthetic/code/plugins/leadgenerator"),
+    ],
+)
+def test_old_uv_registration_is_recognized_on_any_platform(installer, command, package):
     assert installer._owned_entry(
         {
-            "command": r"C:\tools\uv.exe",
+            "command": command,
             "args": [
                 "run",
                 "--project",
-                r"C:\old\code\plugins\leadgenerator",
+                package,
                 "--frozen",
                 "--python",
                 "3.13",
@@ -204,3 +217,28 @@ def test_old_windows_registration_is_recognized_on_another_platform(installer):
             ],
         }
     )
+
+
+@pytest.mark.parametrize(
+    ("command", "launcher"),
+    [
+        (r"C:\tools\node.exe", r"C:\old\code\scripts\claude\project.cjs"),
+        ("/synthetic/bin/node", "/synthetic/code/scripts/claude/project.cjs"),
+    ],
+)
+def test_old_node_registration_is_recognized_on_any_platform(
+    installer, command, launcher
+):
+    assert installer._owned_entry({"command": command, "args": [launcher]})
+
+
+@pytest.mark.parametrize(
+    "launcher",
+    [
+        "relative/scripts/claude/project.cjs",
+        r"C:relative\scripts\claude\project.cjs",
+        r"\rooted-without-drive\scripts\claude\project.cjs",
+    ],
+)
+def test_relative_registration_paths_are_not_owned(installer, launcher):
+    assert not installer._owned_entry({"command": "node", "args": [launcher]})

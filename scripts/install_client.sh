@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
+export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
 
 HOST_TARGET="codex"
 if [[ $# -gt 0 ]]; then
@@ -109,10 +110,8 @@ else
     uv run --project plugins/leadgenerator playwright install chromium
 fi
 
-if ! "$CODEX_BIN" login status >/dev/null 2>&1; then
-    echo "Connexion ChatGPT requise pour utiliser le modele OpenAI."
-    "$CODEX_BIN" login --device-auth
-fi
+# Installing a local MCP plugin does not call a model. Authentication belongs to
+# the already-running host application, not to this dependency/setup workflow.
 
 MARKETPLACE_NAME="leadgenerator-local"
 PLUGIN_NAME="leadgenerator@$MARKETPLACE_NAME"

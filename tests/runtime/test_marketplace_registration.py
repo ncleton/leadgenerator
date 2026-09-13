@@ -22,7 +22,7 @@ def module():
 
 @pytest.mark.parametrize("previous", [None, "same", "other"])
 def test_register_selects_only_the_requested_source(tmp_path, previous):
-    selected = tmp_path / "new/code"
+    selected = tmp_path / "Nouvel espace été/code"
     commands = []
     records = [{"name": "unrelated", "root": str(tmp_path / "unrelated")}]
     if previous:
@@ -34,8 +34,11 @@ def test_register_selects_only_the_requested_source(tmp_path, previous):
         )
 
     def run(args, **kwargs):
+        assert kwargs["encoding"] == "utf-8"
         commands.append(args[3:])
-        return SimpleNamespace(stdout=json.dumps({"marketplaces": records}))
+        return SimpleNamespace(
+            stdout=json.dumps({"marketplaces": records}, ensure_ascii=False)
+        )
 
     module().register(selected, "codex", run=run)
     assert commands[0] == ["list", "--json"]

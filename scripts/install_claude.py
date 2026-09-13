@@ -8,7 +8,7 @@ import json
 import os
 import sys
 import uuid
-from pathlib import Path, PureWindowsPath
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Literal
 
 from leadgenerator.storage import private_home_for_code_root
@@ -62,16 +62,20 @@ def _owned_entry(entry: object) -> bool:
         return False
     executable = command.replace("\\", "/").rsplit("/", 1)[-1].casefold()
     if executable in {"node", "node.exe"} and len(args) == 1:
-        launcher = Path(args[0].replace("\\", "/"))
+        launcher = PurePosixPath(args[0].replace("\\", "/"))
         return (
-            launcher.is_absolute() or PureWindowsPath(args[0]).is_absolute()
+            PurePosixPath(args[0]).is_absolute()
+            or PureWindowsPath(args[0]).is_absolute()
         ) and launcher.parts[-3:] == ("scripts", "claude", "project.cjs")
     if executable not in {"uv", "uv.exe"} or len(args) != 7:
         return False
-    package = Path(args[2].replace("\\", "/"))
+    package = PurePosixPath(args[2].replace("\\", "/"))
     return (
         args[:2] == ["run", "--project"]
-        and (package.is_absolute() or PureWindowsPath(args[2]).is_absolute())
+        and (
+            PurePosixPath(args[2]).is_absolute()
+            or PureWindowsPath(args[2]).is_absolute()
+        )
         and package.parts[-2:] == ("plugins", "leadgenerator")
         and args[3:] == ["--frozen", "--python", "3.13", "leadgenerator-mcp"]
     )
@@ -225,7 +229,7 @@ def main() -> None:
         result = configure_claude(args.code_root, args.uv_command, host=args.host)
     except (OSError, ValueError, TypeError) as error:
         parser.exit(1, f"Claude registration failed: {error}\n")
-    print(json.dumps(result, ensure_ascii=False))
+    print(json.dumps(result, ensure_ascii=True))
 
 
 if __name__ == "__main__":

@@ -26,6 +26,7 @@ def configure_workspace(
         server = config["mcpServers"]["leadgenerator"]
         environment = server.setdefault("env", {})
         environment["LEADGENERATOR_HOME"] = str(home)
+        environment["LEADGENERATOR_HOST"] = "codex"
         # An inherited legacy PostgreSQL URL must not reconnect a new workspace
         # to another installation's records. Portable installs always use SQLite.
         environment["LEADGENERATOR_DATABASE_URL"] = ""
@@ -60,7 +61,9 @@ def main() -> None:
     if args.print_home:
         print(result["private_directory"])
     else:
-        print(json.dumps(result, ensure_ascii=False))
+        # PowerShell may decode captured native stdout with a legacy codepage.
+        # Escaped JSON transports the selected Unicode path without locale loss.
+        print(json.dumps(result, ensure_ascii=True))
 
 
 if __name__ == "__main__":

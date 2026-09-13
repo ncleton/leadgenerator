@@ -138,13 +138,14 @@ def test_visible_export_keeps_current_card_and_complete_history(tmp_path, monkey
     assert index["companies"][0]["snapshot_count"] == 2
     assert current["lead"]["logo_url"].endswith("logo.png")
     assert [json.loads(line)["snapshot_id"] for line in history_lines] == [1, 2]
-    assert stat.S_IMODE(destination.stat().st_mode) == 0o700
-    assert (
-        stat.S_IMODE(
-            (destination / "companies/siren--123456789/current.json").stat().st_mode
+    if os.name != "nt":
+        assert stat.S_IMODE(destination.stat().st_mode) == 0o700
+        assert (
+            stat.S_IMODE(
+                (destination / "companies/siren--123456789/current.json").stat().st_mode
+            )
+            == 0o600
         )
-        == 0o600
-    )
 
 
 @pytest.mark.parametrize(

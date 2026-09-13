@@ -80,7 +80,9 @@ def build(output: Path, source: Path = SOURCE) -> dict[str, str]:
     files["server/launcher.cjs"] = (ROOT / "scripts/claude/launcher.cjs").read_bytes()
     files["README.md"] = (ROOT / "docs/claude-installation.md").read_bytes()
     files["LICENSE"] = (ROOT / "LICENSE").read_bytes()
-    codex_manifest = json.loads((source / ".codex-plugin/plugin.json").read_text())
+    codex_manifest = json.loads(
+        (source / ".codex-plugin/plugin.json").read_text(encoding="utf-8")
+    )
     version = codex_manifest["version"]
     metadata = {
         "name": "leadgenerator",

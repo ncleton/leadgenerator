@@ -101,7 +101,7 @@ function Write-InstalledMcpConfig {
     )
 
     $ConfigPath = Join-Path $PluginRoot ".mcp.json"
-    $Config = Get-Content -LiteralPath $ConfigPath -Raw | ConvertFrom-Json
+    $Config = Get-Content -LiteralPath $ConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json
     $Config.mcpServers.leadgenerator.command = $UvCommand
     $Json = $Config | ConvertTo-Json -Depth 20
     $Utf8WithoutBom = New-Object System.Text.UTF8Encoding($false)
@@ -172,9 +172,10 @@ try {
         Start-InstallStep "Installation du runtime Claude"
         & $UvBin sync --project plugins/leadgenerator --frozen --python 3.13
         Assert-NativeSuccess "L'installation Python a echoue"
-        $env:LEADGENERATOR_HOME = (& $UvBin run --project plugins/leadgenerator --frozen python `
-            scripts/configure_workspace.py --code-root $RootDir --print-home | Out-String).Trim()
+        $WorkspaceOutput = (& $UvBin run --project plugins/leadgenerator --frozen python `
+            scripts/configure_workspace.py --code-root $RootDir | Out-String).Trim()
         Assert-NativeSuccess "La preparation du dossier prive a echoue"
+        $env:LEADGENERATOR_HOME = ($WorkspaceOutput | ConvertFrom-Json).private_directory
         $env:LEADGENERATOR_DATABASE_URL = ""
         $env:LEADGENERATOR_HOST = "claude"
         & $UvBin run --project plugins/leadgenerator --frozen playwright install chromium
@@ -241,9 +242,10 @@ try {
     Assert-NativeSuccess "L'installation Python a echoue"
 
     Start-InstallStep "Preparation du dossier prive de cette installation"
-    $env:LEADGENERATOR_HOME = (& $UvBin run --project plugins/leadgenerator --frozen python `
-        scripts/configure_workspace.py --code-root $RootDir --print-home | Out-String).Trim()
+    $WorkspaceOutput = (& $UvBin run --project plugins/leadgenerator --frozen python `
+        scripts/configure_workspace.py --code-root $RootDir | Out-String).Trim()
     Assert-NativeSuccess "La preparation du dossier prive a echoue"
+    $env:LEADGENERATOR_HOME = ($WorkspaceOutput | ConvertFrom-Json).private_directory
     $env:LEADGENERATOR_DATABASE_URL = ""
     Write-Host "Donnees privees : $env:LEADGENERATOR_HOME"
     Write-Host "Aucun ancien objectif ou profil global n'est importe automatiquement."
@@ -255,20 +257,15 @@ try {
     & $UvBin run --project plugins/leadgenerator --frozen playwright install chromium
     Assert-NativeSuccess "L'installation de Chromium a echoue"
 
-    Start-InstallStep "Connexion a ChatGPT"
-    & $CodexBin login status *> $null
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "Une connexion ChatGPT est requise. Un code de connexion va etre affiche."
-        & $CodexBin login --device-auth
-        Assert-NativeSuccess "La connexion ChatGPT a echoue"
-    }
+    # Local MCP installation performs no model call. Authentication belongs to
+    # the host application and must not interrupt dependency installation.
 
     Start-InstallStep "Installation du plugin Codex"
     $MarketplaceName = "leadgenerator-local"
     $PluginName = "leadgenerator@$MarketplaceName"
     $PluginManifest = Get-Content -LiteralPath (
         Join-Path $RootDir "plugins/leadgenerator/.codex-plugin/plugin.json"
-    ) -Raw | ConvertFrom-Json
+    ) -Raw -Encoding UTF8 | ConvertFrom-Json
     $PluginVersion = $PluginManifest.version
     $CodexHomeDir = if ($env:CODEX_HOME) { $env:CODEX_HOME } else { Join-Path $HOME ".codex" }
     $CacheRoot = Join-Path $CodexHomeDir "plugins/cache/$MarketplaceName/leadgenerator"

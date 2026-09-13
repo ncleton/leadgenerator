@@ -17,6 +17,10 @@ progress messages concise and use the conversation's language.
    including its graphical Code tab, uses `claude-desktop`; terminal Claude Code
    uses `claude-code`. Do not ask the user to choose an internal package format.
    If the host genuinely cannot be determined, ask one short question.
+   On Linux, use the Codex CLI or terminal Claude Code runtime; do not promise
+   a native Claude Desktop installation. The Desktop target is for macOS and
+   Windows. Configuration and MCP/Chromium checks do not establish that every
+   graphical host version has launched or rendered the interface successfully.
 3. Read this repository's `AGENTS.md` and run its installer from the source root:
 
    | Platform | Installer |

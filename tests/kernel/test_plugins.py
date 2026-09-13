@@ -2,6 +2,7 @@
 
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -313,7 +314,78 @@ for line in sys.stdin:
     host.stop()
 
     assert host.process.poll() is not None
+    assert host.process.stdin.closed
+    assert host.process.stdout.closed
+    assert not host._reader_thread.is_alive()
     assert not runtime_dir.exists()
+
+
+def test_forced_plugin_stop_reaps_and_closes_pipes_before_directory_removal(
+    tmp_path, monkeypatch
+):
+    events = []
+
+    class Pipe:
+        def write(self, value):
+            pass
+
+        def flush(self):
+            pass
+
+        def close(self):
+            events.append("close")
+
+    class Process:
+        stdin = Pipe()
+        stdout = Pipe()
+        killed = False
+
+        def poll(self):
+            return None
+
+        def terminate(self):
+            events.append("terminate")
+
+        def kill(self):
+            self.killed = True
+            events.append("kill")
+
+        def wait(self, timeout):
+            events.append("wait")
+            if not self.killed:
+                raise subprocess.TimeoutExpired("synthetic-process", timeout)
+
+    host = IsolatedPluginHost(None, Process(), tmp_path)
+    monkeypatch.setattr(
+        plugin_runtime.shutil, "rmtree", lambda path: events.append("remove")
+    )
+    host.stop()
+    assert events == ["terminate", "wait", "kill", "wait", "close", "close", "remove"]
+
+
+def test_plugin_start_failure_removes_its_private_runtime(tmp_path, monkeypatch):
+    runtime = tmp_path / "runtime"
+    runtime.mkdir()
+    monkeypatch.setattr(
+        plugin_runtime.tempfile, "mkdtemp", lambda **kwargs: str(runtime)
+    )
+
+    def unavailable(*args):
+        raise CompositionError("No supported OS sandbox")
+
+    monkeypatch.setattr(plugin_runtime, "sandbox_extension_command", unavailable)
+    with pytest.raises(CompositionError, match="No supported OS sandbox"):
+        IsolatedPluginHost.start(None, {})
+    assert not runtime.exists()
+
+
+@pytest.mark.parametrize("command", ["plugin-host", "./plugin-host", "../plugin-host"])
+def test_executable_plugin_never_accepts_relative_command(tmp_path, command):
+    values = base_spec("executable")
+    values["spec"]["command"] = [command]
+    values["spec"]["permissions"] = {"subprocess": True}
+    with pytest.raises(PluginManifestError, match="absolute command"):
+        PluginManifest.load(write_manifest(tmp_path / "relative", values))
 
 
 def test_executable_extension_fails_closed_without_os_sandbox(tmp_path, monkeypatch):

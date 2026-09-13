@@ -569,6 +569,7 @@ class IsolatedPluginHost:
         self.runtime_dir = runtime_dir
         self._next_id = 0
         self._lock = threading.RLock()
+        self._reader_thread: threading.Thread | None = None
         self.ready_payload: dict[str, Any] = {}
 
     @classmethod
@@ -582,16 +583,20 @@ class IsolatedPluginHost:
             "LANG": os.environ.get("LANG", "C.UTF-8"),
             "PYTHONUNBUFFERED": "1",
         }
-        command = sandbox_extension_command(manifest, runtime_dir)
-        process = subprocess.Popen(
-            command,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            text=True,
-            cwd=runtime_dir,
-            env=environment,
-        )
+        try:
+            command = sandbox_extension_command(manifest, runtime_dir)
+            process = subprocess.Popen(
+                command,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                text=True,
+                cwd=runtime_dir,
+                env=environment,
+            )
+        except Exception:
+            shutil.rmtree(runtime_dir)
+            raise
         host = cls(manifest, process, runtime_dir)
         try:
             host._send(
@@ -647,11 +652,15 @@ class IsolatedPluginHost:
             except BaseException as exc:  # pragma: no cover - defensive thread edge
                 received.put(exc)
 
-        threading.Thread(target=read_line, daemon=True).start()
+        self._reader_thread = threading.Thread(target=read_line, daemon=True)
+        self._reader_thread.start()
         try:
             result = received.get(timeout=RPC_TIMEOUT_SECONDS)
         except queue.Empty as exc:
             self.process.kill()
+            # TerminateProcess is asynchronous on Windows. Reap before callers
+            # attempt to remove the child's working directory or close its pipes.
+            self.process.wait(timeout=5)
             raise CompositionError("Isolated plugin RPC timed out.") from exc
         if isinstance(result, BaseException):
             raise CompositionError("Isolated plugin output failed.") from result
@@ -690,16 +699,35 @@ class IsolatedPluginHost:
             return response.get("result")
 
     def stop(self) -> None:
-        try:
+        """Reap the child and close its pipes before removing private runtime files."""
+        with self._lock:
             if self.process.poll() is None:
                 try:
                     self._send({"protocol": PLUGIN_PROTOCOL_VERSION, "type": "stop"})
+                except (OSError, ValueError):
+                    # A child may already have closed stdin while shutting down.
+                    pass
+                try:
                     self.process.terminate()
                     self.process.wait(timeout=5)
-                except (OSError, subprocess.TimeoutExpired):
+                except subprocess.TimeoutExpired:
                     self.process.kill()
-        finally:
-            shutil.rmtree(self.runtime_dir, ignore_errors=True)
+            # This wait also covers the forced-kill and previously exited paths.
+            self.process.wait(timeout=5)
+            if self._reader_thread is not None:
+                self._reader_thread.join(timeout=5)
+                if self._reader_thread.is_alive():
+                    raise CompositionError("Isolated plugin output did not close.")
+            for stream in (self.process.stdin, self.process.stdout):
+                if stream is not None:
+                    try:
+                        stream.close()
+                    except OSError:
+                        pass
+            try:
+                shutil.rmtree(self.runtime_dir)
+            except FileNotFoundError:
+                pass
 
 
 @dataclass

@@ -9,6 +9,51 @@ permissions:
   contents: read
 
 jobs:
+  installer-smoke:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: portable agent é/code
+      - name: Install Codex plugin from a fresh source folder
+        if: runner.os != 'Windows'
+        env:
+          CODEX_HOME: ${{ runner.temp }}/leadgenerator-codex
+        working-directory: portable agent é/code
+        run: ./scripts/install_client.sh
+      - name: Install Codex plugin on Windows
+        if: runner.os == 'Windows'
+        env:
+          CODEX_HOME: ${{ runner.temp }}/leadgenerator-codex
+        shell: powershell
+        working-directory: portable agent é/code
+        run: .\scripts\install_client.ps1
+      - name: Install Claude Code from the same source folder
+        if: runner.os != 'Windows'
+        working-directory: portable agent é/code
+        run: ./scripts/install_client.sh --host claude-code
+      - name: Install Claude Desktop from the same source folder
+        if: runner.os == 'macOS'
+        working-directory: portable agent é/code
+        run: ./scripts/install_client.sh --host claude-desktop
+      - name: Install Claude hosts on Windows
+        if: runner.os == 'Windows'
+        shell: powershell
+        working-directory: portable agent é/code
+        run: |
+          .\scripts\install_client.ps1 -HostTarget claude-code
+          .\scripts\install_client.ps1 -HostTarget claude-desktop
+      - name: Verify the private folder is next to the source
+        shell: bash
+        run: |
+          test -d "portable agent é/donnees-privees"
+          test ! -d "portable agent é/code/donnees-privees"
+          test -z "$(find 'portable agent é/donnees-privees' -name objective.json -print -quit)"
+
   quality:
     runs-on: ubuntu-latest
     services:

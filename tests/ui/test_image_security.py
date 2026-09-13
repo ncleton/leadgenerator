@@ -1,6 +1,8 @@
 """Image CSP regression coverage for the native embedded gallery."""
 
 import asyncio
+import json
+import os
 import socket
 from urllib.parse import urlunsplit
 
@@ -154,15 +156,35 @@ def test_image_policy_store_is_private_immutable_and_rejects_invalid_references(
         "https://new.example.com",
     }
     assert first.read(old) == {"https://assets.example.com"}
-    assert (first.root / "policies" / old).stat().st_mode & 0o077 == 0
+    policy = first.root / "policies" / old
+    assert policy.is_file() and not policy.is_symlink()
+    assert json.loads(policy.read_text(encoding="utf-8")) == [
+        "https://assets.example.com"
+    ]
+    # Windows stat mode does not expose the private directory's access-control list.
+    if os.name == "posix":
+        assert policy.stat().st_mode & 0o077 == 0
     for invalid in ("../private", "x" * 64):
         with pytest.raises(ValueError):
             first.read(invalid)
-    target = first.root / "policies" / old
+
+
+def test_image_policy_store_rejects_redirected_policy_files(public_dns, tmp_path):
+    store = ImagePolicyStore(tmp_path)
+    store.record({"https://assets.example.com"})
+    old = store.current()
+    store.record({"https://new.example.com"})
+    current = store.current()
+    target = store.root / "policies" / old
     target.unlink()
-    target.symlink_to(first.root / "policies" / current)
+    try:
+        target.symlink_to(store.root / "policies" / current)
+    except OSError as error:
+        if os.name == "nt" and getattr(error, "winerror", None) == 1314:
+            pytest.skip("This Windows account cannot create symbolic links.")
+        raise
     with pytest.raises(ValueError):
-        first.read(old)
+        store.read(old)
 
 
 @pytest.mark.parametrize(

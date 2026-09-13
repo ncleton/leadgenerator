@@ -99,6 +99,10 @@ le projet dans un dossier durable, installe les dépendances et configure votre
 application. Vous n'avez pas à choisir un paquet ni à saisir des commandes.
 Acceptez les autorisations ou connexions que l'application vous demande elle-même.
 
+L'installation et le moteur fonctionnent sur **macOS, Windows et Linux**.
+Sur Linux, utilisez le CLI Codex ou Claude Code en terminal ; l'intégration
+Claude Desktop concerne macOS et Windows.
+
 Si vous avez déjà téléchargé le projet, ouvrez son dossier et demandez
 **« Installe cet agent depuis ce dossier »**.
 

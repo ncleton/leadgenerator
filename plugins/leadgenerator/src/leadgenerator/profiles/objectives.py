@@ -19,7 +19,7 @@ import zipfile
 import zlib
 from datetime import UTC, datetime
 from html.parser import HTMLParser
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Literal
 from xml.etree import ElementTree
 
@@ -189,6 +189,25 @@ class ObjectiveAttachment(StrictModel):
     @classmethod
     def _valid_ids(cls, value: str) -> str:
         return validate_identifier(value)
+
+    @field_validator("stored_path", "extracted_text_path")
+    @classmethod
+    def _portable_relative_path(cls, value: str | None) -> str | None:
+        """Read legacy Windows separators without accepting traversal or drives."""
+        if value is None:
+            return None
+        normalized = value.replace("\\", "/")
+        path = PurePosixPath(normalized)
+        if (
+            not path.parts
+            or path.is_absolute()
+            or PureWindowsPath(normalized).drive
+            or ".." in path.parts
+            or ":" in normalized
+            or "\x00" in normalized
+        ):
+            raise ValueError("A safe relative attachment path is required.")
+        return path.as_posix()
 
 
 class ObjectiveNote(StrictModel):
@@ -1196,9 +1215,11 @@ class ObjectiveStore:
             mime_type=resolved_mime,
             byte_size=size,
             sha256=digest,
-            stored_path=str(stored_path.relative_to(self._objective_dir(objective_id))),
+            stored_path=stored_path.relative_to(
+                self._objective_dir(objective_id)
+            ).as_posix(),
             extracted_text_path=(
-                str(extracted_path.relative_to(self._objective_dir(objective_id)))
+                extracted_path.relative_to(self._objective_dir(objective_id)).as_posix()
                 if extracted_path
                 else None
             ),
