@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -38,7 +39,12 @@ def make_cache(tmp_path, command="uv", bound=True):
 
 def run_repair(cache):
     environment = dict(os.environ)
-    environment["PATH"] = "/usr/bin:/bin"
+    # The repair runs in Terminal. CI installs uv outside the usual Mac paths;
+    # retain that executable while excluding unrelated tools from the test PATH.
+    # The installed transport has its own strictly desktop-PATH regression test.
+    uv = shutil.which("uv")
+    assert uv is not None
+    environment["PATH"] = os.pathsep.join([str(Path(uv).parent), os.defpath])
     return subprocess.run(
         ["/bin/bash", str(SCRIPT), "--cache-root", str(cache)],
         env=environment,
