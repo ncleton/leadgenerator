@@ -32,6 +32,11 @@ All notable changes to Lead Generator are documented here. The project follows
 
 ### Fixed
 
+- Bind the installed MCP command to the absolute uv executable on macOS/Linux,
+  preventing desktop session startup from failing when uv is absent from PATH.
+- Verify the installed command, arguments, working directory and private binding
+  with a desktop-like PATH instead of substituting the installer's working launch.
+
 - Make fresh installers organize flat downloads into `code/` and
   `donnees-privees/` themselves, preserving Git metadata and rejecting conflicts.
 

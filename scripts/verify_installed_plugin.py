@@ -6,7 +6,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import shutil
 import sys
 import tempfile
 from builtins import BaseExceptionGroup
@@ -66,8 +65,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--uv-command",
         help=(
-            "Absolute uv executable used by the installer. Defaults to the "
-            "first uv command available on PATH."
+            "Expected absolute uv executable used by the installer. The actual "
+            "launch always uses the installed MCP configuration."
         ),
     )
     return parser.parse_args()
@@ -93,31 +92,62 @@ def error_details(error: BaseException) -> str:
     return f"{type(error).__name__}: {error}"
 
 
-async def verify(plugin_root: Path, uv_command: str | None = None) -> dict[str, Any]:
-    """Exercise the same MCP sequence a new Codex conversation must run."""
-    uv_command = uv_command or shutil.which("uv")
-    if uv_command is None:
-        raise RuntimeError("démarrage: la commande uv est introuvable.")
-    uv_path = Path(uv_command).expanduser().resolve()
-    if not uv_path.is_file():
-        raise RuntimeError(f"démarrage: l'exécutable uv est introuvable: {uv_path}")
-
+def installed_parameters(
+    plugin_root: Path, test_home: Path, uv_command: str | None = None
+) -> StdioServerParameters:
+    """Use the installed transport with a GUI-like PATH and isolated test data."""
     mcp_config = json.loads((plugin_root / ".mcp.json").read_text(encoding="utf-8"))
-    configured_command = mcp_config["mcpServers"]["leadgenerator"]["command"]
-    if os.name == "nt" and Path(configured_command).resolve() != uv_path:
+    server = mcp_config["mcpServers"]["leadgenerator"]
+    command = Path(server["command"])
+    if (
+        not command.is_absolute()
+        or not command.is_file()
+        or not os.access(command, os.X_OK)
+    ):
         raise RuntimeError(
-            "démarrage: la configuration MCP Windows ne pointe pas vers "
+            "démarrage: la configuration MCP doit utiliser le chemin absolu "
+            "d'un exécutable uv disponible, sans dépendre du PATH du terminal."
+        )
+    if uv_command is not None and command.resolve() != Path(uv_command).resolve():
+        raise RuntimeError(
+            "démarrage: la configuration MCP ne pointe pas vers "
             "l'exécutable uv validé."
         )
+    cwd = plugin_root / server.get("cwd", ".")
+    if not cwd.is_dir():
+        raise RuntimeError("démarrage: le dossier de lancement MCP est introuvable.")
+    configured_env = server.get("env", {})
+    binding = configured_env.get("LEADGENERATOR_HOME", "")
+    if not binding or not Path(binding).is_absolute():
+        raise RuntimeError("démarrage: le plugin n'est pas lié à son dossier privé.")
+    child_env = dict(os.environ)
+    child_env.update(configured_env)
+    child_env["PATH"] = (
+        str(Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32")
+        if os.name == "nt"
+        else os.defpath
+    )
+    # Do not let the installer's environment mask a missing cached runtime.
+    child_env.pop("UV_PROJECT_ENVIRONMENT", None)
+    child_env.pop("VIRTUAL_ENV", None)
+    child_env["LEADGENERATOR_HOME"] = str(test_home / "donnees-privees")
+    child_env["LEADGENERATOR_DATABASE_URL"] = ""
+    return StdioServerParameters(
+        command=str(command),
+        args=server.get("args", []),
+        cwd=str(cwd),
+        env=child_env,
+    )
+
+
+async def verify(plugin_root: Path, uv_command: str | None = None) -> dict[str, Any]:
+    """Exercise the same MCP sequence a new Codex conversation must run."""
     original_home = Path.home()
     with tempfile.TemporaryDirectory(
         prefix="leadgenerator-install-check-"
     ) as temp_home:
-        child_env = dict(os.environ)
-        child_env["HOME"] = temp_home
-        child_env["LEADGENERATOR_HOME"] = str(Path(temp_home) / "donnees-privees")
-        if os.name == "nt":
-            child_env["USERPROFILE"] = temp_home
+        parameters = installed_parameters(plugin_root, Path(temp_home), uv_command)
+        child_env = parameters.env
         if "PLAYWRIGHT_BROWSERS_PATH" not in child_env:
             if sys.platform == "darwin":
                 browser_cache = original_home / "Library/Caches/ms-playwright"
@@ -134,15 +164,6 @@ async def verify(plugin_root: Path, uv_command: str | None = None) -> dict[str, 
             else:
                 browser_cache = original_home / ".cache/ms-playwright"
             child_env["PLAYWRIGHT_BROWSERS_PATH"] = str(browser_cache)
-        # Exercise the default portable backend without touching the installed
-        # binding or inheriting a database from the caller's shell.
-        child_env["LEADGENERATOR_DATABASE_URL"] = ""
-        parameters = StdioServerParameters(
-            command=str(uv_path),
-            args=["run", "--project", ".", "--frozen", "leadgenerator-mcp"],
-            cwd=str(plugin_root),
-            env=child_env,
-        )
 
         async with (
             stdio_client(parameters) as (read_stream, write_stream),
@@ -352,7 +373,7 @@ async def verify(plugin_root: Path, uv_command: str | None = None) -> dict[str, 
                     "lecture site vendeur isolé: aucun contenu public n'a été lu."
                 )
             if not isinstance(seller_page.get("visual_candidates"), list):
-                raise RuntimeError(
+                raise TypeError(
                     "lecture site vendeur isolé: le contrat visuel du scrape manque."
                 )
             if "logo_candidate" not in seller_page:
@@ -693,6 +714,8 @@ async def verify(plugin_root: Path, uv_command: str | None = None) -> dict[str, 
 
             return {
                 "status": "ok",
+                "installed_transport_verified": True,
+                "desktop_path_verified": True,
                 "protocol_version": initialized.protocol_version,
                 "tool_count": len(tools),
                 "plugin_count": len(plugins),

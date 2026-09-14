@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
-export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
+export PATH="$HOME/.local/bin:$HOME/.cargo/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
 
 HOST_TARGET="codex"
 if [[ $# -gt 0 ]]; then
@@ -38,6 +38,7 @@ if ! command -v uv >/dev/null 2>&1; then
     echo "Installation automatique de uv."
     UV_NO_MODIFY_PATH=1 install_official_tool "https://astral.sh/uv/install.sh"
 fi
+UV_BIN="$(command -v uv)"
 
 # Do not assume the assistant cloned into code/. Organize a flat download before
 # creating any project environment, then restart from the relocated entrypoint.
@@ -209,12 +210,12 @@ fi
 uv sync --project "$INSTALLED_PLUGIN_ROOT" --frozen --python 3.13
 uv run --project "$INSTALLED_PLUGIN_ROOT" --frozen python \
     "$ROOT_DIR/scripts/configure_workspace.py" --code-root "$ROOT_DIR" \
-    --plugin-root "$INSTALLED_PLUGIN_ROOT"
+    --plugin-root "$INSTALLED_PLUGIN_ROOT" --uv-command "$UV_BIN"
 uv run --project "$INSTALLED_PLUGIN_ROOT" --frozen python -c \
     'import leadgenerator.mcp.server'
 uv run --project "$INSTALLED_PLUGIN_ROOT" --frozen python \
     "$ROOT_DIR/scripts/verify_installed_plugin.py" \
-    --plugin-root "$INSTALLED_PLUGIN_ROOT"
+    --plugin-root "$INSTALLED_PLUGIN_ROOT" --uv-command "$UV_BIN"
 
 # Keep paths referenced by already-open Codex tasks resolvable. Codex removes
 # older version directories during an upgrade, while existing tasks retain their

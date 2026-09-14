@@ -77,3 +77,24 @@ For a folder copied to another computer, use the same installer from its new
 source path. See [storage.md](storage.md): close the apps before copying, retain
 both code and private data, reconnect credentials and browsers, and reconfigure
 host-owned schedules. Never publish or share the private parent archive.
+
+## macOS: required MCP server fails with `No such file or directory`
+
+Older installers left the command as `uv`, which can be available in Terminal
+but absent from Codex Desktop's PATH. Update the source checkout to the current
+version and rerun `scripts/install_client.sh` from `code/`. The installer now
+stores the absolute uv executable in the installed cache, then verifies the
+actual MCP command, arguments and working directory with a minimal desktop PATH.
+The check uses isolated temporary business data and rejects missing private
+bindings; it cannot silently pass by substituting a different executable.
+
+If Codex cannot create any task, run the installer from macOS Terminal, outside
+Codex. Then quit Codex completely and reopen the enclosing installation folder.
+Do not delete the private directory or change `required` to hide the failure.
+
+For an already installed Mac with a valid runtime and private binding,
+`/bin/bash scripts/repair_macos.command` repairs only the cached uv command and
+backs up each modified configuration. It can also run as a standalone download
+from this repository, outside the blocked Codex session. It does not move the
+source, alter private data, or replace a custom launcher. An incomplete install
+still requires the canonical installer. Restart Codex to verify tool discovery.
