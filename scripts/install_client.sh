@@ -39,8 +39,17 @@ if ! command -v uv >/dev/null 2>&1; then
     UV_NO_MODIFY_PATH=1 install_official_tool "https://astral.sh/uv/install.sh"
 fi
 
+# Do not assume the assistant cloned into code/. Organize a flat download before
+# creating any project environment, then restart from the relocated entrypoint.
+PREPARED_ROOT="$(uv run --no-project --python 3.13 python \
+    "$ROOT_DIR/scripts/prepare_workspace.py" --code-root "$ROOT_DIR" --print-code-root)"
+if [[ "$PREPARED_ROOT" != "$ROOT_DIR" ]]; then
+    echo "Dossier organise : $PREPARED_ROOT et ${PREPARED_ROOT%/code}/donnees-privees"
+    exec bash "$PREPARED_ROOT/scripts/install_client.sh" "$@"
+fi
+
 if [[ "$HOST_TARGET" != "codex" ]]; then
-    uv sync --project plugins/leadgenerator --frozen --python 3.13
+    uv sync --project plugins/leadgenerator --frozen --python 3.13 --reinstall
     LEADGENERATOR_HOME="$(uv run --project plugins/leadgenerator --frozen python \
         scripts/configure_workspace.py --code-root "$ROOT_DIR" --print-home)"
     export LEADGENERATOR_HOME
@@ -94,7 +103,7 @@ if ! version_at_least "$CODEX_VERSION" "$MIN_CODEX_VERSION"; then
 fi
 
 echo "Installation de Lead Generator dans $ROOT_DIR"
-uv sync --project plugins/leadgenerator --frozen --python 3.13
+uv sync --project plugins/leadgenerator --frozen --python 3.13 --reinstall
 LEADGENERATOR_HOME="$(uv run --project plugins/leadgenerator --frozen python \
     scripts/configure_workspace.py --code-root "$ROOT_DIR" --print-home)"
 export LEADGENERATOR_HOME

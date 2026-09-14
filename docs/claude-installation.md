@@ -31,7 +31,9 @@ customized instructions. `get_lead_workflow` exposes canonical skills without
 installing a second copy.
 
 After installation, **quit Claude completely and reopen it**, then start a new
-conversation in the same project. A first-use MCP approval may be requested
+conversation in the main installation folder (the parent of `code/`). Its
+generated `CLAUDE.md` points to the source instructions, and terminal Claude
+Code loads `.mcp.json` from this parent. A first-use MCP approval may be requested
 by Claude. Do not bypass it or change global permissions.
 
 MCP connection and MCP Apps rendering are separate acceptance checks. The GUI

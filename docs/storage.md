@@ -17,8 +17,14 @@ mon-agent/
 
 Les profils d'offre, extensions privées et autres fichiers métier utilisent le
 même dossier de données. Son contenu se crée au fur et à mesure de l'utilisation.
-Un dossier de code nommé autrement que `code` utilise par défaut le dossier
-voisin `<nom-du-dossier>-donnees-privees`.
+L'installateur organise aussi un téléchargement brut : il range les fichiers du
+logiciel dans `code/` avant de créer `donnees-privees/` dans le même dossier
+principal. Le dépôt caché `.git`, `AGENTS.md` et `.gitignore` restent dans `code/`.
+Ouvrez le dossier principal comme projet. Les guides `AGENTS.md` et `CLAUDE.md`
+générés à sa racine renvoient aux instructions de `code/` ; la configuration
+Claude Code `.mcp.json` est également à la racine du dossier principal.
+Une ancienne installation avec un voisin `<nom>-donnees-privees` reste intacte :
+sa réorganisation nécessite une migration vérifiée, pas une fusion automatique.
 
 L'installation lie explicitement le moteur à ce dossier avec
 `LEADGENERATOR_HOME`, même si Codex exécute ensuite le plugin depuis son cache.

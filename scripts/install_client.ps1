@@ -168,9 +168,19 @@ try {
     & $UvBin --version
     Assert-NativeSuccess "uv ne demarre pas"
 
+    Start-InstallStep "Organisation du dossier code et des donnees privees"
+    $PreparedOutput = (& $UvBin run --no-project --python 3.13 python `
+        scripts/prepare_workspace.py --code-root $RootDir | Out-String).Trim()
+    Assert-NativeSuccess "L'organisation du dossier a echoue ; aucun dossier existant n'est fusionne"
+    $PreparedRoot = ($PreparedOutput | ConvertFrom-Json).code_root
+    if ($PreparedRoot -ne $RootDir) {
+        & (Join-Path $PreparedRoot "scripts/install_client.ps1") -HostTarget $HostTarget
+        exit $LASTEXITCODE
+    }
+
     if ($HostTarget -ne "codex") {
         Start-InstallStep "Installation du runtime Claude"
-        & $UvBin sync --project plugins/leadgenerator --frozen --python 3.13
+        & $UvBin sync --project plugins/leadgenerator --frozen --python 3.13 --reinstall
         Assert-NativeSuccess "L'installation Python a echoue"
         $WorkspaceOutput = (& $UvBin run --project plugins/leadgenerator --frozen python `
             scripts/configure_workspace.py --code-root $RootDir | Out-String).Trim()

@@ -32,6 +32,9 @@ All notable changes to Lead Generator are documented here. The project follows
 
 ### Fixed
 
+- Make fresh installers organize flat downloads into `code/` and
+  `donnees-privees/` themselves, preserving Git metadata and rejecting conflicts.
+
 - Require sourced coordinates for every explorer lead before rendering or
   persistence; label approximate positions and suppress misleading aerial focus.
 - Preserve native MCP Apps negotiation, contact navigation and delayed hydration
