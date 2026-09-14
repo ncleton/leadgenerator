@@ -18,19 +18,22 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          path: portable agent é/code
+          path: checkout-source
+      - name: Prepare a flat GitHub download without precreating code
+        shell: bash
+        run: git clone --no-hardlinks checkout-source "portable agent é"
       - name: Install Codex plugin from a fresh source folder
         if: runner.os != 'Windows'
         env:
           CODEX_HOME: ${{ runner.temp }}/leadgenerator-codex
-        working-directory: portable agent é/code
+        working-directory: portable agent é
         run: ./scripts/install_client.sh
       - name: Install Codex plugin on Windows
         if: runner.os == 'Windows'
         env:
           CODEX_HOME: ${{ runner.temp }}/leadgenerator-codex
         shell: powershell
-        working-directory: portable agent é/code
+        working-directory: portable agent é
         run: .\scripts\install_client.ps1
       - name: Install Claude Code from the same source folder
         if: runner.os != 'Windows'
@@ -51,6 +54,13 @@ jobs:
         shell: bash
         run: |
           test -d "portable agent é/donnees-privees"
+          test -d "portable agent é/code/.git"
+          test ! -e "portable agent é/.git"
+          test -f "portable agent é/AGENTS.md"
+          test -f "portable agent é/CLAUDE.md"
+          test -f "portable agent é/.mcp.json"
+          test -f "portable agent é/code/AGENTS.md"
+          test -f "portable agent é/code/.gitignore"
           test ! -d "portable agent é/code/donnees-privees"
           test -z "$(find 'portable agent é/donnees-privees' -name objective.json -print -quit)"
 

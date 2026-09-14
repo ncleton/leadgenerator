@@ -33,6 +33,12 @@ When asked to install this agent from its GitHub URL or this folder, first read
 dependencies, private storage binding and correct host registration yourself;
 do not make manual terminal commands or package selection the user's default
 next step. Use the canonical installer, never `codex plugin add` directly.
+The installer reorganizes flat downloads into `code/` and `donnees-privees/`.
+Open the enclosing installation folder as the agent project. Generated root
+`AGENTS.md`/`CLAUDE.md` guides point here; `.git`, `.gitignore` and this canonical
+`AGENTS.md` remain in `code/`. Claude Code's MCP config lives in the open parent.
+Never initialize Git in the enclosing installation folder. Do not execute the
+installer in a working development checkout for validation; use a fresh copy.
 
 ## Development workflow
 

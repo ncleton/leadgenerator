@@ -49,9 +49,9 @@ def test_code_registration_binds_private_sibling_and_is_idempotent(
 ):
     code, uv, _ = workspace
     first = installer.configure_claude(code, uv)
-    config = json.loads((code / ".mcp.json").read_text(encoding="utf-8"))["mcpServers"][
-        "leadgenerator"
-    ]
+    config = json.loads((code.parent / ".mcp.json").read_text(encoding="utf-8"))[
+        "mcpServers"
+    ]["leadgenerator"]
     assert first["changed"] and first["restart_required"]
     assert first["instructions_created"]
     assert first["existing_objectives"] == 0
@@ -79,10 +79,10 @@ def test_code_keeps_custom_instructions_and_unrelated_servers(installer, workspa
     template["mcpServers"]["leadgenerator"]["env"] = {"SYNTHETIC_SETTING": "preserved"}
     template["mcpServers"]["leadgenerator"]["cwd"] = "/synthetic/old-location"
     template["other-setting"] = "preserved"
-    (code / ".mcp.json").write_text(json.dumps(template), encoding="utf-8")
-    before = (code / ".mcp.json").read_bytes()
+    (code.parent / ".mcp.json").write_text(json.dumps(template), encoding="utf-8")
+    before = (code.parent / ".mcp.json").read_bytes()
     result = installer.configure_claude(code, uv)
-    after = json.loads((code / ".mcp.json").read_text(encoding="utf-8"))
+    after = json.loads((code.parent / ".mcp.json").read_text(encoding="utf-8"))
     assert after["mcpServers"]["other-server"] == {"command": "synthetic-other"}
     assert after["other-setting"] == "preserved"
     assert (
@@ -159,7 +159,7 @@ def test_copied_code_rebinds_without_losing_private_files(
 )
 def test_unknown_connector_is_not_overwritten(installer, workspace, entry):
     code, uv, _ = workspace
-    config = code / ".mcp.json"
+    config = code.parent / ".mcp.json"
     config.write_text(
         json.dumps({"mcpServers": {"leadgenerator": entry}}), encoding="utf-8"
     )
@@ -173,7 +173,7 @@ def test_unknown_connector_is_not_overwritten(installer, workspace, entry):
 
 def test_malformed_config_has_no_partial_writes(installer, workspace):
     code, uv, _ = workspace
-    config = code / ".mcp.json"
+    config = code.parent / ".mcp.json"
     config.write_bytes(b"{not-json}")
     with pytest.raises(ValueError, match="not valid JSON"):
         installer.configure_claude(code, uv)
@@ -186,7 +186,7 @@ def test_symlink_source_and_config_are_rejected(installer, workspace, tmp_path):
     alias = tmp_path / "alias"
     try:
         alias.symlink_to(code, target_is_directory=True)
-        (code / ".mcp.json").symlink_to(tmp_path / "outside.json")
+        (code.parent / ".mcp.json").symlink_to(tmp_path / "outside.json")
     except OSError:
         pytest.skip("Symbolic links require host permission")
     with pytest.raises(ValueError, match="symlink"):

@@ -148,14 +148,26 @@ données privées dans le dépôt Git :
 
 ```text
 mon-agent/
+├── AGENTS.md           ← orientation de Codex vers les instructions du logiciel
+├── CLAUDE.md           ← orientation de Claude
 ├── code/               ← le logiciel, relié à GitHub
 └── donnees-privees/     ← objectifs, documents, réglages et mémoire des entreprises
 ```
 
 L'installateur indique le dossier de données utilisé et s'il contient déjà des
 objectifs. Un nouveau dossier de données démarre vide : les anciens profils du
-compte utilisateur ne sont jamais importés automatiquement. Avec un dossier de
-code portant un autre nom, le dossier voisin s'appelle `<nom>-donnees-privees`.
+compte utilisateur ne sont jamais importés automatiquement. Même si le téléchargement
+contient directement les fichiers du logiciel, l'installateur les range dans
+`code/` et crée `donnees-privees/` dans le même dossier principal.
+
+Ouvrez **le dossier principal** dans Codex ou Claude Code. Les petits fichiers
+`AGENTS.md` et `CLAUDE.md` créés à sa racine dirigent l'assistant vers les
+instructions de `code/`. Claude Code reçoit aussi sa configuration locale
+`.mcp.json` à cette racine. Le `.gitignore` et le dossier caché `.git` restent
+ensemble dans `code/`. Ne créez pas de dépôt
+Git dans le dossier principal. Si une ancienne installation possède déjà un
+dossier privé voisin, utilisez un nouveau dossier pour repartir de zéro ;
+l'installateur ne fusionne ni n'écrase ces données.
 
 Pour changer d'ordinateur, fermez l'application, copiez **le dossier principal
 complet**, puis relancez l'installation depuis son nouveau dossier `code`.

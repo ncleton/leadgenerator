@@ -99,11 +99,12 @@ def configure_claude(
         raise ValueError("Unsupported Claude host.")
     home = private_home_for_code_root(code_root)
     code = code_root.resolve()
+    project = code.parent if code.name == "code" else code
     uv = Path(uv_command)
     if not uv.is_absolute() or not uv.is_file():
         raise ValueError("An absolute path to the installed uv executable is required.")
     config = config_path or (
-        code / ".mcp.json" if host == "claude-code" else desktop_config_path()
+        project / ".mcp.json" if host == "claude-code" else desktop_config_path()
     )
     snapshot, value = _read_config(config)
     servers = value.get("mcpServers", {})
