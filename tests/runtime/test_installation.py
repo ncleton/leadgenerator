@@ -4,11 +4,15 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import sys
 from pathlib import Path
 from types import SimpleNamespace
 
+import anyio
 import pytest
+from mcp import ClientSession
+from mcp.client.stdio import stdio_client
 
 ROOT = Path(__file__).resolve().parents[2]
 PLUGIN_ROOT = ROOT / "plugins" / "leadgenerator"
@@ -100,6 +104,86 @@ def test_installed_verifier_accepts_an_explicit_uv_executable(monkeypatch):
 
     assert args.plugin_root == str(PLUGIN_ROOT)
     assert args.uv_command == sys.executable
+
+
+def installed_config(tmp_path, **overrides):
+    """Model the configured cache without copying dependencies or client data."""
+    root = tmp_path / "Plugin cache é with spaces"
+    root.mkdir()
+    server = {
+        "command": sys.executable,
+        "args": ["-m", "leadgenerator.mcp.server"],
+        "cwd": ".",
+        "env": {"LEADGENERATOR_HOME": str(tmp_path / "real-private")},
+    }
+    server.update(overrides)
+    (root / ".mcp.json").write_text(
+        json.dumps({"mcpServers": {"leadgenerator": server}})
+    )
+    return root
+
+
+@pytest.mark.parametrize("command", ["uv", "/missing-test-installation/uv"])
+def test_verifier_does_not_substitute_a_working_command(tmp_path, command):
+    root = installed_config(tmp_path, command=command)
+    with pytest.raises(RuntimeError, match="chemin absolu"):
+        load_verifier().installed_parameters(root, tmp_path / "test", sys.executable)
+
+
+def test_verifier_preserves_installed_arguments_and_isolates_private_data(
+    tmp_path, monkeypatch
+):
+    root = installed_config(tmp_path, args=["--invalid-installed-argument"])
+    monkeypatch.setenv("UV_PROJECT_ENVIRONMENT", "/unrelated-runtime")
+    monkeypatch.setenv("VIRTUAL_ENV", "/unrelated-runtime")
+    parameters = load_verifier().installed_parameters(root, tmp_path / "test")
+    assert parameters.args == ["--invalid-installed-argument"]
+    assert parameters.command == sys.executable
+    assert Path(parameters.cwd) == root
+    assert "UV_PROJECT_ENVIRONMENT" not in parameters.env
+    assert "VIRTUAL_ENV" not in parameters.env
+    assert parameters.env["LEADGENERATOR_HOME"] == str(
+        tmp_path / "test/donnees-privees"
+    )
+    assert parameters.env["LEADGENERATOR_DATABASE_URL"] == ""
+    if os.name != "nt":
+        assert parameters.env["PATH"] == os.defpath
+
+
+@pytest.mark.parametrize("overrides", [{"cwd": "missing"}, {"env": {}}])
+def test_verifier_rejects_missing_working_directory_or_binding(tmp_path, overrides):
+    root = installed_config(tmp_path, **overrides)
+    with pytest.raises(RuntimeError, match="dossier"):
+        load_verifier().installed_parameters(root, tmp_path / "test")
+
+
+def test_installed_transport_initializes_with_desktop_path(tmp_path):
+    root = installed_config(tmp_path)
+    parameters = load_verifier().installed_parameters(root, tmp_path / "test")
+
+    async def check():
+        with anyio.fail_after(30):
+            async with (
+                stdio_client(parameters) as (reader, writer),
+                ClientSession(reader, writer) as session,
+            ):
+                await session.initialize()
+                tools = await session.list_tools()
+                assert "get_lead_interface_mode" in {tool.name for tool in tools.tools}
+                mode = await session.call_tool("get_lead_interface_mode", {})
+                assert not mode.is_error
+                assert mode.structured_content["storage"]["private_directory"] == str(
+                    tmp_path / "test/donnees-privees"
+                )
+
+    anyio.run(check)
+    assert not (tmp_path / "real-private").exists()
+
+
+def test_macos_installer_binds_and_verifies_the_same_absolute_executable():
+    shell = (ROOT / "scripts/install_client.sh").read_text()
+    assert 'UV_BIN="$(command -v uv)"' in shell
+    assert shell.count('--uv-command "$UV_BIN"') == 2
 
 
 def test_validation_limits_pytest_collection_to_repository_tests():

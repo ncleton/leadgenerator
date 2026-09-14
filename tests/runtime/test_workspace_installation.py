@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import shutil
+import sys
 from pathlib import Path
 
 import pytest
@@ -46,7 +47,12 @@ def test_installer_ignores_global_binding_and_rebinds_after_folder_copy(
         json.dumps({"mcpServers": {"leadgenerator": {"command": "uv"}}})
     )
 
+    monkeypatch.setattr(shutil, "which", lambda name: sys.executable)
     first_result = configurator().configure_workspace(first, plugin_root=cache)
+    assert (
+        json.loads(config_path.read_text())["mcpServers"]["leadgenerator"]["command"]
+        == sys.executable
+    )
     assert first_result["existing_objectives"] == 0
     assert first_result["legacy_data_imported"] is False
     home = first.parent / "donnees-privees"
@@ -58,15 +64,29 @@ def test_installer_ignores_global_binding_and_rebinds_after_folder_copy(
     copied_parent = tmp_path / "Copied workspace"
     shutil.copytree(first.parent, copied_parent)
     result = configurator().configure_workspace(
-        copied_parent / "code", plugin_root=cache, uv_command="/synthetic/uv"
+        copied_parent / "code", plugin_root=cache, uv_command=sys.executable
     )
     assert result["existing_objectives"] == 1
     config = json.loads(config_path.read_text())["mcpServers"]["leadgenerator"]
     assert config["env"]["LEADGENERATOR_HOME"] == str(copied_parent / "donnees-privees")
     assert config["env"]["LEADGENERATOR_DATABASE_URL"] == ""
-    assert config["command"] == "/synthetic/uv"
+    assert config["command"] == sys.executable
     assert objective.is_file()
     assert not (tmp_path / "old-global").exists()
+
+
+@pytest.mark.parametrize("command", ["uv", "/missing-test-installation/uv"])
+def test_cache_binding_refuses_unusable_commands_without_writing(tmp_path, command):
+    code = source_folder(tmp_path / "workspace/code")
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    config_path = cache / ".mcp.json"
+    original = '{"mcpServers": {"leadgenerator": {"command": "uv"}}}'
+    config_path.write_text(original)
+    with pytest.raises(ValueError, match="absolute uv"):
+        configurator().configure_workspace(code, plugin_root=cache, uv_command=command)
+    assert config_path.read_text() == original
+    assert not (code.parent / "donnees-privees").exists()
 
 
 def test_distinct_source_folders_never_share_a_default_private_directory(tmp_path):
